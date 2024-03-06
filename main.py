@@ -135,7 +135,7 @@ def main():
     cv2.waitKey(100)
 
 
-    scaleFactor = 1
+    scaleFactor = 1.25
     output_width = int(190 / scaleFactor)
     frameNo = 0
     seeds = []

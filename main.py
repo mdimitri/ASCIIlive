@@ -38,7 +38,7 @@ def image_to_ascii(image, output_width=100):
     ascii_image = ''
     grayscale_image = Image.fromarray(np.uint8(grayscale_image))
 
-    jitterRange = 3
+    jitterRange = 2
     jitter = np.random.randint(-jitterRange, jitterRange, size=np.prod(grayscale_image.size))
     for idx, pixel_value in enumerate(grayscale_image.getdata()):
         ascii_image += ascii_chars[jitterRange + int(pixel_value // (256 / (len(ascii_chars) - 2 * jitterRange))) + jitter[idx]]
@@ -141,7 +141,7 @@ def main():
         resized_image_viz = cv2.resize(resized_image,(canvas_width, canvas_height), interpolation=cv2.INTER_AREA)
 
         # Render ASCII characters on the canvas
-        font = cv2.FONT_HERSHEY_DUPLEX
+        font = cv2.FONT_HERSHEY_SIMPLEX
         font_scale = np.minimum(charHeight, charWidth) / 25
         font_thickness = 1
         y_position = 0  # Starting position for the text

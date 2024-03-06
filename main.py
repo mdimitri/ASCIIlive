@@ -48,7 +48,7 @@ def image_to_ascii(image, ascii_chars, output_width=100):
     return ascii_art, new_height, lines, resized_image
 
 
-def shiftLines(lines, oldLines, seeds):
+def shiftLines(lines, oldLines, seeds, frameDiff):
     # keep the old lines, except at seed positions where data is overwritten with new lines
     # replace new line characters into old lines
     ENC_TYPE = "ascii"
@@ -56,7 +56,6 @@ def shiftLines(lines, oldLines, seeds):
         s = bytearray(oldLines[seed[1]], ENC_TYPE)
         s[seed[0]] = ord(lines[seed[1]][seed[0]])
         oldLines[seed[1]] = s.decode(ENC_TYPE)
-
 
     width = len(lines[0])
     height = len(lines)
@@ -67,16 +66,34 @@ def shiftLines(lines, oldLines, seeds):
     # seconds = current_time.second + current_time.microsecond / 1000000
 
     # if np.mod(milliseconds, 1000) < 1000:
-    if len(seeds) < 5*len(lines[0]): # at least a few per column
-        for i in np.arange(0, np.random.randint(10, width)):
-            seeds.append([np.random.randint(0, width), np.random.randint(0, height)])
+    # while len(seeds) < 5*len(lines[0]):
+    #     seeds.append([np.random.randint(0, width), np.random.randint(0, height)])
 
-    # reduce row number of seeds quickly
-    whichones = np.random.randint(0, 10, len(seeds))
+    # # probabilistic seeding near frame difference regions
+    # frameDiff = cv2.resize(frameDiff, (width, height), cv2.INTER_NEAREST)
+    # frameDiff = frameDiff ** 3.0
+    # flat_frame_diff = frameDiff.flatten()
+    # probabilities = flat_frame_diff / np.sum(flat_frame_diff)
+    # random_indices = np.random.choice(np.arange(len(probabilities)), size= 10*len(lines[0]) - len(seeds), p=probabilities)
+    # row_indices, col_indices = np.unravel_index(random_indices, frameDiff.shape)
+    # row_indices = np.clip(row_indices - height//20, 0, height)
+    # seeds += [list(i) for i in zip(col_indices, row_indices)]
+
+    while len(seeds) < 10*len(lines[0]):
+        seeds.append([np.random.randint(0, width), np.random.randint(2, height)])
+        seeds.append([seeds[-1][0], seeds[-1][1] - 1])
+        seeds.append([seeds[-1][0], seeds[-1][1] - 1])
+
+    # if len(seeds) < 1*len(lines[0]): # at least a few per column
+    #     for i in np.arange(0, np.random.randint(10, width)):
+    #         seeds.append([np.random.randint(0, width), np.random.randint(0, height//2)])
+
+    # update positions, fall down
+    # whichones = np.random.randint(0, 10, len(seeds))
     # if np.mod(milliseconds, 10) <= 10:
     for idx, seed in enumerate(seeds):
-        if whichones[idx] < 7:
-            seed[1] = seed[1] + 1
+        # if whichones[idx] < 10:
+        seed[1] = seed[1] + 3
 
     # remove finished seeds
     seeds = [seed for seed in seeds if seed[1] < height]
@@ -89,24 +106,36 @@ class RGBcamera(Thread):
         self.cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)  # this is the magic!
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, targetResolution[0])
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, targetResolution[1])
-        self.cap.set(cv2.CAP_PROP_FPS, 30)
-        self.frame = []
-        self.start()
+        self.cap.set(cv2.CAP_PROP_FPS, 60)
+        self.targetResolution = targetResolution
+        # read in one frame
         self.frame = self.cap.read()[1]
+        if self.frame.shape[0] < self.targetResolution[1]:
+            cutWidth = int((self.frame.shape[1] - self.frame.shape[0] * self.targetResolution[0] / self.targetResolution[1]) / 2)
+            self.frame = self.frame[:, cutWidth: -cutWidth, :]
+        self.frame = np.flip(self.frame, axis=1)
+        # start async
+        self.start()
+
+
 
     def run(self):
         while True:
             self.frame = self.cap.read()[1]
+            if self.frame.shape[0] < self.targetResolution[1]:
+                cutWidth = int((self.frame.shape[1] - self.frame.shape[0] * self.targetResolution[0] / self.targetResolution[1]) / 2)
+                self.frame = self.frame[:, cutWidth: -cutWidth, :]
+            self.frame = np.flip(self.frame, axis=1)
 
 def main():
-    # cv2.namedWindow('ASCII', cv2.WND_PROP_FULLSCREEN)
-    # cv2.setWindowProperty('ASCII', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+    cv2.namedWindow('ASCII', cv2.WND_PROP_FULLSCREEN)
+    cv2.setWindowProperty('ASCII', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
     targetResolution = [1280 // 2, 800 // 2]
     camera = RGBcamera(targetResolution=targetResolution)
-      # also invokes run()
+    cv2.waitKey(100)
 
 
-    scaleFactor = 2
+    scaleFactor = 1
     output_width = int(190 / scaleFactor)
     frameNo = 0
     seeds = []
@@ -114,33 +143,37 @@ def main():
     # Define the ASCII characters to represent different intensity levels
     # ascii_chars = "@%#*+=-:. "[::-1]
     # ascii_chars = ['@', '8', '#', 'B', 'W', 'O', '0', 'Q', 'L', 'C', 'J', 'P', 'X', 'Z', 'U', 'Y', 'Z', 'm', 'w', 'o', 'a', 'h', 'k', 'b', 'd', 'p', 'q', 'u', 'n', 'r', 'j', 'v', 'y', 'c', 'x', 'z', 'v', 'u', 'n', 'r', 'j', 'v', 'y', 'c', 'x', 'z', 'n', 'r', 'j', 'v', 'y', 'c', 'x', 'z', '!', 'i', 'l', 'I', ';', ':', ',', '.', '`', ' ']
-    ascii_chars =  "`.-:_,^=;><+!rc*/z?sLTv)J7(|Fi{C}fI31tlu[neoZ5Yxjya]2ESwqkP6h9d4VpOGbUAKXHm8RD#$Bg0MNWQ%&@"
+    # ascii_chars =  "`.-:_,^=;><+!rc*/z?sLTv)J7(|Fi{C}fI31tlu[neoZ5Yxjya]2ESwqkP6h9d4VpOGbUAKXHm8RD#$Bg0MNWQ%&@"
     # ascii_chars = r'$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\|()1{}[]?-_+~<>i!lI;:,"^`\'.'[::-1]
-    # ascii_chars = "@MBHENR#KWXDFPQASUZbdehx*8Gm&04LOVYkpq5Tagns69owz$CIu23Jcfry%1v7l+it[] {}?j|()=~!-/<>\"^_';,:`. "[::-1]
+    ascii_chars = "@MBHENR#KWXDFPQASUZbdehx*8Gm&04LOVYkpq5Tagns69owz$CIu23Jcfry%1v7l+it[] {}?j|()=~!-/<>\"^_';,:`. "[::-1]
     # ascii_chars = "$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\|()1{}[]?-_+~<>i!lI;:,\"^`'. "[::-1]
+
     rasterDict = {}
     for char in ascii_chars:
         rasterDict[char] = [np.zeros(0), []] # the raster image and it's size
 
     while True:
         # Read the latest frame from the webcam
+        if frameNo>0:
+            oldFrame = frame
+
         frame = camera.frame
 
-        if frame.shape[0] < targetResolution[1]:
-            cutWidth = int((frame.shape[1] - frame.shape[0] * targetResolution[0] / targetResolution[1]) / 2)
-            frame = frame[:, cutWidth : -cutWidth, :]
-        frame = np.flip(frame, axis=1)
+        if frameNo>0:
+            frameDiff = np.clip(np.mean(np.abs(
+                cv2.GaussianBlur(frame, (11, 11), 0)-
+                cv2.GaussianBlur(oldFrame, (11, 11), 0)), axis=2) / 255.0, 0, 1)
 
         ascii_art, new_height, lines, resized_image = image_to_ascii(frame, ascii_chars=ascii_chars, output_width=output_width)
 
         if frameNo>0:
             # shift lines matrix-style
-            oldLines, seeds = shiftLines(lines, oldLines=oldLines, seeds=seeds)
+            oldLines, seeds = shiftLines(lines, oldLines=oldLines, seeds=seeds, frameDiff=frameDiff)
         else:
             oldLines = lines
 
-        charHeight = int(10)# * scaleFactor)
-        charWidth = int(10)# * scaleFactor)
+        charHeight = int(10 * scaleFactor)
+        charWidth = int(10 * scaleFactor)
         # Create a blank canvas to render ASCII art using OpenCV
         canvas_width, canvas_height = output_width * charWidth, new_height * charHeight
         if frameNo == 0:
@@ -155,10 +188,10 @@ def main():
         resized_image = cv2.cvtColor(resized_image, cv2.COLOR_BGR2HSV)
         resized_image[:, :, 0] = np.mod(resized_image[:, :, 0] + seconds / (60 / (180)), 180)
         resized_image[:, :, 1] = ((resized_image[:, :, 1] / 255.0) ** 0.5) * 255
-        resized_image[:, :, 2] = ((resized_image[:, :, 2] / 255.0) ** 1) * 255
+        resized_image[:, :, 2] = ((resized_image[:, :, 2] / 255.0) ** 2) * 255
         resized_image = cv2.cvtColor(resized_image, cv2.COLOR_HSV2BGR)
 
-        resized_image_viz = cv2.resize(resized_image,(canvas_width, canvas_height), interpolation=cv2.INTER_NEAREST)
+        # resized_image_viz = cv2.resize(resized_image,(canvas_width, canvas_height), interpolation=cv2.INTER_NEAREST)
 
         # Render ASCII characters on the canvas
         font = cv2.FONT_HERSHEY_SIMPLEX
@@ -179,10 +212,10 @@ def main():
                                            charHeight // 2 + textSize[1] // 2),
                         font, font_scale, (int(color[0]), int(color[1]), int(color[2])), font_thickness, cv2.LINE_AA)
             # Resize the character image to fit the canvas size
-            char_image_resized = cv2.resize(char_image, (charWidth, charHeight), cv2.INTER_NEAREST)
-            # store it for later use
-            rasterDict[char][0] = char_image_resized
-            rasterDict[char][1] = textSize
+            char_image_resized = cv2.resize(char_image, (charWidth, charHeight), cv2.INTER_NEAREST )
+            # # store it for later use
+            # rasterDict[char][0] = char_image_resized
+            # rasterDict[char][1] = textSize
 
             # paste it into the canvas
             canvas[seed[1]*charHeight:seed[1]*charHeight + charHeight,
@@ -192,10 +225,11 @@ def main():
 
 
         canvasBlend = np.where(canvasHighlight!=(0,0,0), canvasHighlight, canvas)
+        cv2.imshow('ASCII',  cv2.resize(canvasBlend, dsize=(1920, 1200), interpolation=cv2.INTER_NEAREST))
 
-        # cv2.imshow('ASCII',  cv2.resize(canvasBlend, dsize=(1920, 1200), interpolation=cv2.INTER_NEAREST))
-
-        cv2.imshow('ASCII', np.hstack((resized_image_viz, canvasBlend)))
+        # if frameNo>0:
+            # cv2.imshow('ASCII', np.hstack((canvasBlend, canvasBlend))
+            # cv2.imshow('ASCII', frameDiff)
         if cv2.waitKey(1) == ord('x'):
             return
 

@@ -5,6 +5,30 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 from threading import Thread
 
+def cropFrame(image, crop_dimension=200):
+    height, width = image.shape[:2]
+
+    # Calculate the aspect ratio of the original image
+    aspect_ratio = width / height
+
+    # Calculate the crop size for the other dimension to maintain the aspect ratio
+    if width > height:
+        crop_height = int(crop_dimension / aspect_ratio)
+        crop_width = crop_dimension
+    else:
+        crop_width = int(crop_dimension * aspect_ratio)
+        crop_height = crop_dimension
+
+    # Calculate the coordinates for the top-left and bottom-right corners of the crop
+    top_left_x = (width - crop_width) // 2
+    top_left_y = (height - crop_height) // 2
+    bottom_right_x = top_left_x + crop_width
+    bottom_right_y = top_left_y + crop_height
+
+    # Crop the center portion of the image
+    cropped_image = image[top_left_y:bottom_right_y, top_left_x:bottom_right_x]
+    return cropped_image
+
 def unsharpMask(image, kernelSize=(0,0), gaussianSigma=2):
     gaussian_3 = cv2.GaussianBlur(image, kernelSize, gaussianSigma)
     unsharp_image = cv2.addWeighted(image, 2.0, gaussian_3, -1.0, 1)
@@ -101,19 +125,23 @@ def shiftLines(lines, oldLines, seeds, frameDiff):
     return oldLines, seeds
 
 class RGBcamera(Thread):
-    def __init__(self, targetResolution):
+    def __init__(self, targetResolution, cropSize):
         Thread.__init__(self)
         self.cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)  # this is the magic!
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, targetResolution[0])
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, targetResolution[1])
         self.cap.set(cv2.CAP_PROP_FPS, 60)
         self.targetResolution = targetResolution
+        self.cropSize = cropSize
+
         # read in one frame
         self.frame = self.cap.read()[1]
         if self.frame.shape[0] < self.targetResolution[1]:
             cutWidth = int((self.frame.shape[1] - self.frame.shape[0] * self.targetResolution[0] / self.targetResolution[1]) / 2)
             self.frame = self.frame[:, cutWidth: -cutWidth, :]
         self.frame = np.flip(self.frame, axis=1)
+        # crop central portion of grabbed frame
+        self.frame = cropFrame(self.frame, crop_dimension=self.cropSize)
         # start async
         self.start()
 
@@ -126,12 +154,18 @@ class RGBcamera(Thread):
                 cutWidth = int((self.frame.shape[1] - self.frame.shape[0] * self.targetResolution[0] / self.targetResolution[1]) / 2)
                 self.frame = self.frame[:, cutWidth: -cutWidth, :]
             self.frame = np.flip(self.frame, axis=1)
+            # crop central portion of grabbed frame
+            self.frame = cropFrame(self.frame, crop_dimension=self.cropSize)
 
 def main():
     cv2.namedWindow('ASCII', cv2.WND_PROP_FULLSCREEN)
     cv2.setWindowProperty('ASCII', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+    # setting for the webcam
     targetResolution = [1280 // 2, 800 // 2]
-    camera = RGBcamera(targetResolution=targetResolution)
+    # crop the central portion
+    cropSize = [1280 // 4, 800 // 4]
+
+    camera = RGBcamera(targetResolution=targetResolution, cropSize=cropSize)
     cv2.waitKey(100)
 
 
@@ -225,7 +259,7 @@ def main():
 
 
         canvasBlend = np.where(canvasHighlight!=(0,0,0), canvasHighlight, canvas)
-        cv2.imshow('ASCII',  cv2.resize(canvasBlend, dsize=(1920, 1200), interpolation=cv2.INTER_NEAREST))
+        # cv2.imshow('ASCII',  cv2.resize(canvasBlend, dsize=(1920, 1200), interpolation=cv2.INTER_NEAREST))
 
         # if frameNo>0:
             # cv2.imshow('ASCII', np.hstack((canvasBlend, canvasBlend))

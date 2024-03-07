@@ -163,7 +163,7 @@ def main():
     # setting for the webcam
     targetResolution = [1280 // 2, 800 // 2]
     # crop the central portion
-    cropSize = [1280 // 4, 800 // 4]
+    cropSize = 200
 
     camera = RGBcamera(targetResolution=targetResolution, cropSize=cropSize)
     cv2.waitKey(100)

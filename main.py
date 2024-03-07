@@ -72,6 +72,12 @@ def image_to_ascii(image, ascii_chars, output_width=100):
     return ascii_art, new_height, lines, resized_image
 
 
+def savePic(pic):
+    path = './Wall of fame'
+    current_datetime = datetime.now()
+    pathPic = os.path.join(path, current_datetime.strftime("%Y%m%d%H%M%S") + '.png');
+    cv2.imwrite(pathPic, pic)
+    return
 def shiftLines(lines, oldLines, seeds, frameDiff):
     # keep the old lines, except at seed positions where data is overwritten with new lines
     # replace new line characters into old lines
@@ -264,8 +270,12 @@ def main():
         # if frameNo>0:
             # cv2.imshow('ASCII', np.hstack((canvasBlend, canvasBlend))
             # cv2.imshow('ASCII', frameDiff)
-        if cv2.waitKey(1) == ord('x'):
+        key = cv2.waitKey(1)
+        if key == ord('x'):
             return
+        elif key == ord(' '):
+            savePic(canvasBlend)
+
 
         frameNo += 1
 

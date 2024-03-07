@@ -163,7 +163,7 @@ def main():
     # setting for the webcam
     targetResolution = [1280 // 2, 800 // 2]
     # crop the central portion
-    cropSize = 200
+    cropSize = 300
 
     camera = RGBcamera(targetResolution=targetResolution, cropSize=cropSize)
     cv2.waitKey(100)
@@ -175,11 +175,11 @@ def main():
     seeds = []
 
     # Define the ASCII characters to represent different intensity levels
-    # ascii_chars = "@%#*+=-:. "[::-1]
+    ascii_chars = "@%#*+=-:. "[::-1]
     # ascii_chars = ['@', '8', '#', 'B', 'W', 'O', '0', 'Q', 'L', 'C', 'J', 'P', 'X', 'Z', 'U', 'Y', 'Z', 'm', 'w', 'o', 'a', 'h', 'k', 'b', 'd', 'p', 'q', 'u', 'n', 'r', 'j', 'v', 'y', 'c', 'x', 'z', 'v', 'u', 'n', 'r', 'j', 'v', 'y', 'c', 'x', 'z', 'n', 'r', 'j', 'v', 'y', 'c', 'x', 'z', '!', 'i', 'l', 'I', ';', ':', ',', '.', '`', ' ']
     # ascii_chars =  "`.-:_,^=;><+!rc*/z?sLTv)J7(|Fi{C}fI31tlu[neoZ5Yxjya]2ESwqkP6h9d4VpOGbUAKXHm8RD#$Bg0MNWQ%&@"
     # ascii_chars = r'$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\|()1{}[]?-_+~<>i!lI;:,"^`\'.'[::-1]
-    ascii_chars = "@MBHENR#KWXDFPQASUZbdehx*8Gm&04LOVYkpq5Tagns69owz$CIu23Jcfry%1v7l+it[] {}?j|()=~!-/<>\"^_';,:`. "[::-1]
+    # ascii_chars = "@MBHENR#KWXDFPQASUZbdehx*8Gm&04LOVYkpq5Tagns69owz$CIu23Jcfry%1v7l+it[] {}?j|()=~!-/<>\"^_';,:`. "[::-1]
     # ascii_chars = "$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\|()1{}[]?-_+~<>i!lI;:,\"^`'. "[::-1]
 
     rasterDict = {}
@@ -259,7 +259,7 @@ def main():
 
 
         canvasBlend = np.where(canvasHighlight!=(0,0,0), canvasHighlight, canvas)
-        # cv2.imshow('ASCII',  cv2.resize(canvasBlend, dsize=(1920, 1200), interpolation=cv2.INTER_NEAREST))
+        cv2.imshow('ASCII',  cv2.resize(canvasBlend, dsize=(1920, 1200), interpolation=cv2.INTER_NEAREST))
 
         # if frameNo>0:
             # cv2.imshow('ASCII', np.hstack((canvasBlend, canvasBlend))

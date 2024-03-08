@@ -65,22 +65,29 @@ def image_to_ascii(image, ascii_chars, output_width=100):
 
     # Convert each pixel to ASCII character based on intensity
     ascii_image = ''
-    grayscale_image = Image.fromarray(np.uint8(grayscale_image))
+    # grayscale_image = Image.fromarray(np.uint8(grayscale_image))
 
 
     jitterRange = 1
     jitter = np.random.randint(-jitterRange, jitterRange, size=np.prod(grayscale_image.size))
-    for idx, pixel_value in enumerate(grayscale_image.getdata()):
-        ascii_image += ascii_chars[jitterRange + int(pixel_value // (256 / (len(ascii_chars) - 2 * jitterRange))) + jitter[idx]]
+    jitter = np.reshape(jitter, (grayscale_image.shape))
+
+    ascii_image = np.asarray(ascii_chars)[(jitterRange + (grayscale_image // (256 / (len(ascii_chars) - 2 * jitterRange))) + jitter).astype(np.int32)]
+    # lines = ascii_image.tolist()
+
+    # for idx, pixel_value in enumerate(grayscale_image.getdata()):
+    #     ascii_image += ascii_chars[jitterRange + int(pixel_value // (256 / (len(ascii_chars) - 2 * jitterRange))) + jitter[idx]]
 
     # for idx, pixel_value in enumerate(grayscale_image.getdata()):
     #     ascii_image += ascii_chars[int(pixel_value // (256 / len(ascii_chars)))]
 
     # Split the ASCII image into lines
-    lines = [ascii_image[i:i + output_width] for i in range(0, len(ascii_image), output_width)]
-    ascii_art = '\n'.join(lines)
+    # lines = [ascii_image[i:i + output_width] for i in range(0, len(ascii_image), output_width)]
 
-    return ascii_art, new_height, lines, resized_image
+    lines = [''.join(ascii_line) for i, ascii_line in enumerate(ascii_image)]
+
+
+    return new_height, lines, resized_image
 
 
 def savePic(pic):
@@ -216,7 +223,7 @@ def sortCharsVisually(charHeight, charWidth, font, font_scale, font_thickness):
         color = (255, 255, 255)
         cv2.putText(char_image, char, (charWidth // 2 - textSize[0] // 2,
                                        charHeight // 2 + textSize[1] // 2),
-                    font, font_scale, (int(color[0]), int(color[1]), int(color[2])), font_thickness, cv2.LINE_AA)
+                    font, font_scale, (int(color[0]), int(color[1]), int(color[2])), font_thickness, cv2.LINE_4)
         charWeight[idx] = (char_image / 255.0).sum() / np.prod(char_image.shape)
 
     idx = np.argsort(charWeight)
@@ -268,7 +275,7 @@ def main():
         # Read the latest frame from the webcam
         # if frameNo>0:
         #     oldFrame = frame
-
+        t1 = time.time()
         frame = camera.frame
 
         # if frameNo>0:
@@ -276,11 +283,13 @@ def main():
         #         cv2.GaussianBlur(frame, (11, 11), 0)-
         #         cv2.GaussianBlur(oldFrame, (11, 11), 0)), axis=2) / 255.0, 0, 1)
 
-        ascii_art, new_height, lines, resized_image = image_to_ascii(frame, ascii_chars=ascii_chars, output_width=output_width)
+
+        new_height, lines, resized_image = image_to_ascii(frame, ascii_chars=ascii_chars, output_width=output_width)
 
         if frameNo>0:
             # shift lines matrix-style
             oldLines, seeds = shiftLines(lines, oldLines=oldLines, seeds=seeds, frameDiff=[])
+
         else:
             oldLines = lines
 
@@ -290,6 +299,8 @@ def main():
             canvas = np.zeros((canvas_height, canvas_width, 3), dtype=np.uint8) # initialize a blank canvas
 
         canvasHighlight = np.zeros((canvas_height, canvas_width, 3), dtype=np.uint8)  # initialize a blank canvas
+
+
 
         # boost colors, and rotate hue over time
         current_time = datetime.now()
@@ -304,41 +315,54 @@ def main():
         # resized_image_viz = cv2.resize(resized_image,(canvas_width, canvas_height), interpolation=cv2.INTER_NEAREST)
 
         # darken canvas
-        canvas = cv2.cvtColor(canvas, cv2.COLOR_BGR2HSV)
-        canvas[:, :, 2] = np.clip(canvas[:, :, 2].astype(np.int16) - 2, 0, 255).astype(np.uint8)
-        canvas = cv2.cvtColor(canvas, cv2.COLOR_HSV2BGR)
+        # canvas = np.clip(canvas.astype(np.int16) - 2, 0, 255).astype(np.uint8)
+        canvas = canvas - np.minimum(canvas, 2)
+
 
 
         # go over each seed point and update the canvas
         for seed in seeds:
             char = oldLines[seed[1]][seed[0]]
+            # if not(rasterDict[char][1]):
             char_image = np.zeros((charHeight, charWidth, 3), dtype=np.uint8)  # rectangle for each character
             # get the size of the rasterized letter
             textSize = cv2.getTextSize(char, fontFace=font, fontScale=font_scale, thickness=font_thickness)[0]
             # put it in the center of the tile
             # color = (255, 255, 255)
+            minVal = 64
             color = resized_image[seed[1], seed[0], :]
             cv2.putText(char_image, char, (charWidth // 2 - textSize[0] // 2,
                                            charHeight // 2 + textSize[1] // 2),
-                        font, font_scale, (int(color[0]), int(color[1]), int(color[2])), font_thickness, cv2.LINE_AA)
+                        font, font_scale, (int(np.maximum(minVal, color[0])), int(np.maximum(minVal, color[1])), int(np.maximum(minVal, color[2]))), font_thickness, cv2.LINE_AA)
 
             # Resize the character image to fit the canvas size
             # char_image_resized = cv2.resize(char_image, (charWidth, charHeight), cv2.INTER_NEAREST )
 
-            # # store it for later use
-            # rasterDict[char][0] = char_image_resized
-            # rasterDict[char][1] = textSize
+            #     # # store it for later use
+            #     rasterDict[char][0] = char_image
+            #     rasterDict[char][1] = textSize
+            # else:
+            #     char_image = rasterDict[char][0]
+            #     textSize = rasterDict[char][1]
+
 
             # paste it into the canvas
             canvas[seed[1]*charHeight:seed[1]*charHeight + charHeight,
                     seed[0]*charWidth:seed[0]*charWidth + charWidth] = char_image#_resized
-            highlightAmount = (0.5 if seed[2] == 1 else 1.0)
+            highlightAmount = (0.4 if seed[2] == 1 else 1.0)
             canvasHighlight[seed[1] * charHeight:seed[1] * charHeight + charHeight,
                 seed[0] * charWidth:seed[0] * charWidth + charWidth] = ((char_image / 255.0) ** highlightAmount) * 255
 
 
-        canvasBlend = np.where(canvasHighlight!=(0,0,0), canvasHighlight, canvas)
-        cv2.imshow('ASCII',  cv2.resize(canvasBlend, dsize=(1920, 1200), interpolation=cv2.INTER_NEAREST))
+
+        canvasHighlight_resized = cv2.resize(canvasHighlight, dsize=(1920, 1200), interpolation=cv2.INTER_NEAREST)
+        canvas_resized          = cv2.resize(canvas, dsize=(1920, 1200), interpolation=cv2.INTER_NEAREST)
+
+        canvasBlend = np.where(canvasHighlight_resized!=(0,0,0), canvasHighlight_resized, canvas_resized)
+
+
+        cv2.imshow('ASCII', canvasBlend)
+        print(time.time() - t1)
 
         # if frameNo>0:
             # cv2.imshow('ASCII', np.hstack((canvasBlend, canvasBlend))

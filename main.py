@@ -316,7 +316,7 @@ def main():
 
         # darken canvas
         # canvas = np.clip(canvas.astype(np.int16) - 2, 0, 255).astype(np.uint8)
-        canvas = canvas - np.minimum(canvas, 2)
+        canvas = canvas - np.minimum(canvas, 1)
 
 
 

@@ -39,9 +39,9 @@ def image_to_ascii(image, ascii_chars, output_width=100):
     new_height = int(np.ceil(output_width * aspect_ratio))
     resized_image = cv2.resize(image, (output_width, new_height), interpolation=cv2.INTER_NEAREST)
 
-    resized_image = resized_image / 255.0
-    resized_image = resized_image ** 0.3
-    resized_image *= 255
+    # resized_image = resized_image / 255.0
+    resized_image = resized_image + np.minimum(20, 255-resized_image)
+    # resized_image *= 255
     resized_image = resized_image.astype(np.uint8)
 
     # resized_image = resized_image + ((255 - resized_image) >> 1)
@@ -235,7 +235,7 @@ def main():
     # setting for the webcam
     targetResolution = [1280 // 2, 800 // 2]
     # crop the central portion
-    cropSize = targetResolution[0] // 2
+    cropSize = int(targetResolution[0] / 1.5)
 
     camera = RGBcamera(targetResolution=targetResolution, cropSize=cropSize)
     cv2.waitKey(100)
@@ -309,7 +309,7 @@ def main():
         resized_image = cv2.cvtColor(resized_image, cv2.COLOR_BGR2HSV)
         resized_image[:, :, 0] = np.mod(resized_image[:, :, 0] + seconds / (60 / (180)), 180)
         resized_image[:, :, 1] = ((resized_image[:, :, 1] / 255.0) ** 0.5) * 255
-        resized_image[:, :, 2] = ((resized_image[:, :, 2] / 255.0) ** 2) * 255
+        # resized_image[:, :, 2] = ((resized_image[:, :, 2] / 255.0) ** 1) * 255
         resized_image = cv2.cvtColor(resized_image, cv2.COLOR_HSV2BGR)
 
         # resized_image_viz = cv2.resize(resized_image,(canvas_width, canvas_height), interpolation=cv2.INTER_NEAREST)

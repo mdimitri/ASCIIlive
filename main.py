@@ -1,4 +1,4 @@
-import cv2, time, sys, os
+import cv2, time, sys, os, string
 from PIL import Image
 import numpy as np
 import matplotlib.pyplot as plt
@@ -202,6 +202,26 @@ def histStretch(img):
     img2 = cdf[img]
     return img2
 
+def sortCharsVisually(charHeight, charWidth, font, font_scale, font_thickness):
+    printable_ascii_characters = list(string.printable)
+    # remove carriage returns and tabs and whitespaces
+    printable_ascii_characters = [char for char in printable_ascii_characters if not(char in ['\x0a', '\x0b', '\x0c', '\r', '\t', ' '])]
+
+    charWeight = np.zeros(len(printable_ascii_characters))
+    for idx, char in enumerate(printable_ascii_characters):
+        char_image = np.zeros((charHeight, charWidth, 3), dtype=np.uint8)  # rectangle for each character
+        # get the size of the rasterized letter
+        textSize = cv2.getTextSize(char, fontFace=font, fontScale=font_scale, thickness=font_thickness)[0]
+        # put it in the center of the tile
+        color = (255, 255, 255)
+        cv2.putText(char_image, char, (charWidth // 2 - textSize[0] // 2,
+                                       charHeight // 2 + textSize[1] // 2),
+                    font, font_scale, (int(color[0]), int(color[1]), int(color[2])), font_thickness, cv2.LINE_AA)
+        charWeight[idx] = (char_image / 255.0).sum() / np.prod(char_image.shape)
+
+    idx = np.argsort(charWeight)
+    printable_ascii_characters = [printable_ascii_characters[i] for i in idx]
+    return printable_ascii_characters, charWeight
 def main():
     cv2.namedWindow('ASCII', cv2.WND_PROP_FULLSCREEN)
     cv2.setWindowProperty('ASCII', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
@@ -216,13 +236,25 @@ def main():
 
     scaleFactor = 1.25
     output_width = int(192 / scaleFactor)
+
+    charHeight = int(10 * scaleFactor)
+    charWidth = int(10 * scaleFactor)
+
+    # Render ASCII characters on the canvas
+    font = cv2.FONT_HERSHEY_DUPLEX
+    font_scale = np.minimum(charHeight, charWidth) / 25
+    font_thickness = 1
+
+    # precompute the brightness levels of all printable characters
+    ascii_chars, charWeight = sortCharsVisually(charHeight, charWidth, font, font_scale, font_thickness)
+
     frameNo = 0
     seeds = []
 
     # Define the ASCII characters to represent different intensity levels
     # ascii_chars = "@%#*+=-:. "[::-1]
     # ascii_chars = ['@', '8', '#', 'B', 'W', 'O', '0', 'Q', 'L', 'C', 'J', 'P', 'X', 'Z', 'U', 'Y', 'Z', 'm', 'w', 'o', 'a', 'h', 'k', 'b', 'd', 'p', 'q', 'u', 'n', 'r', 'j', 'v', 'y', 'c', 'x', 'z', 'v', 'u', 'n', 'r', 'j', 'v', 'y', 'c', 'x', 'z', 'n', 'r', 'j', 'v', 'y', 'c', 'x', 'z', '!', 'i', 'l', 'I', ';', ':', ',', '.', '`', ' ']
-    ascii_chars =  "`.-:_,^=;><+!rc*/z?sLTv)J7(|Fi{C}fI31tlu[neoZ5Yxjya]2ESwqkP6h9d4VpOGbUAKXHm8RD#$Bg0MNWQ%&@"
+    # ascii_chars =  "`.-:_,^=;><+!rc*/z?sLTv)J7(|Fi{C}fI31tlu[neoZ5Yxjya]2ESwqkP6h9d4VpOGbUAKXHm8RD#$Bg0MNWQ%&@"
     # ascii_chars = r'$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\|()1{}[]?-_+~<>i!lI;:,"^`\'.'[::-1]
     # ascii_chars = "@MBHENR#KWXD8GFPQASUZ&04LOVY5Tbdehx*mkpqagns69owz$CIu23Jcfry%1v7l+it[] {}?j|()=~!-/<>\"^_';,:`. "[::-1]
     # ascii_chars = "$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\|()1{}[]?-_+~<>i!lI;:,\"^`'. "[::-1]
@@ -252,8 +284,6 @@ def main():
         else:
             oldLines = lines
 
-        charHeight = int(10 * scaleFactor)
-        charWidth = int(10 * scaleFactor)
         # Create a blank canvas to render ASCII art using OpenCV
         canvas_width, canvas_height = output_width * charWidth, new_height * charHeight
         if frameNo == 0:
@@ -273,11 +303,6 @@ def main():
 
         # resized_image_viz = cv2.resize(resized_image,(canvas_width, canvas_height), interpolation=cv2.INTER_NEAREST)
 
-        # Render ASCII characters on the canvas
-        font = cv2.FONT_HERSHEY_DUPLEX
-        font_scale = np.minimum(charHeight, charWidth) / 25
-        font_thickness = 1
-
         # darken canvas
         canvas = cv2.cvtColor(canvas, cv2.COLOR_BGR2HSV)
         canvas[:, :, 2] = np.clip(canvas[:, :, 2].astype(np.int16) - 2, 0, 255).astype(np.uint8)
@@ -296,18 +321,20 @@ def main():
             cv2.putText(char_image, char, (charWidth // 2 - textSize[0] // 2,
                                            charHeight // 2 + textSize[1] // 2),
                         font, font_scale, (int(color[0]), int(color[1]), int(color[2])), font_thickness, cv2.LINE_AA)
+
             # Resize the character image to fit the canvas size
-            char_image_resized = cv2.resize(char_image, (charWidth, charHeight), cv2.INTER_NEAREST )
+            # char_image_resized = cv2.resize(char_image, (charWidth, charHeight), cv2.INTER_NEAREST )
+
             # # store it for later use
             # rasterDict[char][0] = char_image_resized
             # rasterDict[char][1] = textSize
 
             # paste it into the canvas
             canvas[seed[1]*charHeight:seed[1]*charHeight + charHeight,
-                    seed[0]*charWidth:seed[0]*charWidth + charWidth] = char_image_resized
+                    seed[0]*charWidth:seed[0]*charWidth + charWidth] = char_image#_resized
             highlightAmount = (0.5 if seed[2] == 1 else 1.0)
             canvasHighlight[seed[1] * charHeight:seed[1] * charHeight + charHeight,
-                seed[0] * charWidth:seed[0] * charWidth + charWidth] = ((char_image_resized / 255.0) ** highlightAmount) * 255
+                seed[0] * charWidth:seed[0] * charWidth + charWidth] = ((char_image / 255.0) ** highlightAmount) * 255
 
 
         canvasBlend = np.where(canvasHighlight!=(0,0,0), canvasHighlight, canvas)

@@ -103,8 +103,7 @@ def main():
 
     mpDraw = mediapipe.solutions.drawing_utils
     mpFaceMesh = mediapipe.solutions.face_mesh
-    faceMesh = mpFaceMesh.FaceMesh(min_detection_confidence=0.5, min_tracking_confidence=0.5, max_num_faces=2,
-                                   output_facial_transformation_matrixes=True)
+    faceMesh = mpFaceMesh.FaceMesh(min_detection_confidence=0.5, min_tracking_confidence=0.5, max_num_faces=2)
 
     drawSpecOval     = mpDraw.DrawingSpec(thickness=6, circle_radius=0, color=(255, 255, 255))
     drawSpecEyeBrows = mpDraw.DrawingSpec(thickness=6, circle_radius=0, color=(255, 255, 255))

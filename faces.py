@@ -6,6 +6,13 @@ from datetime import datetime
 from threading import Thread
 import mediapipe
 
+def savePic(pic):
+    path = './Wall of fame'
+    current_datetime = datetime.now()
+    pathPic = os.path.join(path, current_datetime.strftime("%Y%m%d%H%M%S") + '.jpg')
+    cv2.imwrite(pathPic, pic, [cv2.IMWRITE_JPEG_QUALITY, 100])
+    return
+
 def apply_wiggly_pattern(image, frequency=10, amplitude=10, phase=0):
     rows, cols, _ = image.shape
 
@@ -84,6 +91,7 @@ class RGBcamera(Thread):
             self.frame = np.flip(self.frame, axis=1)
             # crop central portion of grabbed frame
             self.frame = cropFrame(self.frame, crop_dimension=self.cropSize)
+
 def main():
     # setting for the webcam
     targetResolution = [1280 // 1, 800 // 1]
@@ -95,7 +103,9 @@ def main():
 
     mpDraw = mediapipe.solutions.drawing_utils
     mpFaceMesh = mediapipe.solutions.face_mesh
-    faceMesh = mpFaceMesh.FaceMesh(min_detection_confidence=0.5, min_tracking_confidence=0.5, max_num_faces=2)
+    faceMesh = mpFaceMesh.FaceMesh(min_detection_confidence=0.5, min_tracking_confidence=0.5, max_num_faces=2,
+                                   output_facial_transformation_matrixes=True)
+
     drawSpecOval     = mpDraw.DrawingSpec(thickness=6, circle_radius=0, color=(255, 255, 255))
     drawSpecEyeBrows = mpDraw.DrawingSpec(thickness=6, circle_radius=0, color=(255, 255, 255))
     drawSpecEyes     = mpDraw.DrawingSpec(thickness=6, circle_radius=0, color=(255, 255, 255))
@@ -114,12 +124,7 @@ def main():
         current_time = datetime.now()
         seconds = current_time.second + current_time.microsecond / 1000000
 
-        phase = np.deg2rad(np.mod(seconds / (1 / (360)), 360))
-        camera.frame = apply_wiggly_pattern(camera.frame, frequency=5, amplitude=10, phase=phase)
-
         frame = np.ascontiguousarray(camera.frame)
-
-
 
         # make a trippy background
         background = cv2.cvtColor(camera.frame, cv2.COLOR_BGR2HSV)
@@ -133,10 +138,11 @@ def main():
 
         # frameNP = np.ascontiguousarray(frame)
         results = faceMesh.process(frame)
-        frameBackground = np.copy(frame)
+
         frame *= 0
 
         if results.multi_face_landmarks:
+            # draw faces
             for faceLms in results.multi_face_landmarks:
                 mpDraw.draw_landmarks(frame, faceLms, mpFaceMesh.FACEMESH_TESSELATION,
                                       landmark_drawing_spec=None,
@@ -163,6 +169,12 @@ def main():
                                       landmark_drawing_spec=None,
                                       connection_drawing_spec=drawSpecEyeBrows)
 
+
+
+
+
+
+
         # # Find the contours in the binary image
         # contours, hierarchy = cv2.findContours(frame[:,:,0], cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         # # Create a blank image with the same dimensions as the original image
@@ -178,12 +190,18 @@ def main():
         # background = cv2.resize(background, (frame.shape[1], frame.shape[0]), interpolation=cv2.INTER_NEAREST)
 
 
+        phase = np.deg2rad(np.mod(seconds / (1 / (360)), 360))
+        background = apply_wiggly_pattern(background, frequency=5, amplitude=10, phase=phase)
 
         canvasBlend = np.where(frame == (0, 0, 0), background, frame)
 
-        canvasBlend = cv2.resize(canvasBlend, (1200, 1920), interpolation=cv2.INTER_NEAREST)
+        canvasBlend = cv2.resize(canvasBlend, (1920, 1200), interpolation=cv2.INTER_NEAREST)
         cv2.imshow('faces', cv2.cvtColor(canvasBlend, cv2.COLOR_BGR2RGB))
-        cv2.waitKey(1)
+        key = cv2.waitKey(1)
+        if key == ord('x'):
+            return
+        elif key == ord(' '):
+            savePic(canvasBlend)
         continue
 
     return

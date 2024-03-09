@@ -4,7 +4,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime
 from threading import Thread
-
 def cropFrame(image, crop_dimension=200):
     height, width = image.shape[:2]
 
@@ -275,8 +274,8 @@ def main():
         # Read the latest frame from the webcam
         # if frameNo>0:
         #     oldFrame = frame
-        t1 = time.time()
-        frame = camera.frame
+
+        frame = np.ascontiguousarray(camera.frame)
 
         # if frameNo>0:
         #     frameDiff = np.clip(np.mean(np.abs(
@@ -362,7 +361,6 @@ def main():
 
 
         cv2.imshow('ASCII', canvasBlend)
-        print(time.time() - t1)
 
         # if frameNo>0:
             # cv2.imshow('ASCII', np.hstack((canvasBlend, canvasBlend))

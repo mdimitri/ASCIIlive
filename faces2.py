@@ -64,12 +64,49 @@ def draw_landmarks_on_image(rgb_image, detection_result):
     #     connections=mp.solutions.face_mesh.FACEMESH_TESSELATION,
     #     landmark_drawing_spec=None,
     #     connection_drawing_spec=solutions.drawing_utils.DrawingSpec(thickness=1, circle_radius=0, color=(64, 64, 64)))
+
+    # solutions.drawing_utils.draw_landmarks(
+    #     image=annotated_image,
+    #     landmark_list=face_landmarks_proto,
+    #     connections=mp.solutions.face_mesh.FACEMESH_CONTOURS,
+    #     landmark_drawing_spec=None,
+    #     connection_drawing_spec=solutions.drawing_utils.DrawingSpec(thickness=2, circle_radius=0, color=(255, 255, 255)))
+
     solutions.drawing_utils.draw_landmarks(
         image=annotated_image,
         landmark_list=face_landmarks_proto,
-        connections=mp.solutions.face_mesh.FACEMESH_CONTOURS,
+        connections=mp.solutions.face_mesh.FACEMESH_LIPS,
         landmark_drawing_spec=None,
         connection_drawing_spec=solutions.drawing_utils.DrawingSpec(thickness=2, circle_radius=0, color=(255, 255, 255)))
+
+    solutions.drawing_utils.draw_landmarks(
+        image=annotated_image,
+        landmark_list=face_landmarks_proto,
+        connections=mp.solutions.face_mesh.FACEMESH_LEFT_EYEBROW,
+        landmark_drawing_spec=None,
+        connection_drawing_spec=solutions.drawing_utils.DrawingSpec(thickness=2, circle_radius=0, color=(255, 255, 255)))
+
+    solutions.drawing_utils.draw_landmarks(
+        image=annotated_image,
+        landmark_list=face_landmarks_proto,
+        connections=mp.solutions.face_mesh.FACEMESH_LEFT_EYE,
+        landmark_drawing_spec=None,
+        connection_drawing_spec=solutions.drawing_utils.DrawingSpec(thickness=2, circle_radius=0, color=(255, 255, 255)))
+
+    solutions.drawing_utils.draw_landmarks(
+        image=annotated_image,
+        landmark_list=face_landmarks_proto,
+        connections=mp.solutions.face_mesh.FACEMESH_RIGHT_EYEBROW,
+        landmark_drawing_spec=None,
+        connection_drawing_spec=solutions.drawing_utils.DrawingSpec(thickness=2, circle_radius=0, color=(255, 255, 255)))
+
+    solutions.drawing_utils.draw_landmarks(
+        image=annotated_image,
+        landmark_list=face_landmarks_proto,
+        connections=mp.solutions.face_mesh.FACEMESH_RIGHT_EYE,
+        landmark_drawing_spec=None,
+        connection_drawing_spec=solutions.drawing_utils.DrawingSpec(thickness=2, circle_radius=0, color=(255, 255, 255)))
+
     # solutions.drawing_utils.draw_landmarks(
     #     image=annotated_image,
     #     landmark_list=face_landmarks_proto,
@@ -205,7 +242,7 @@ def draw_names(image, detection_result, funnyNames, seconds):
     height = image.shape[0]; width = image.shape[1]
     facePositions = []
     if len(detection_result.face_blendshapes):
-        np.random.seed(int((seconds/10)) * 10)
+        np.random.seed(int((seconds/15)) * 15)
         for face_landmarks in detection_result.face_landmarks:
             # compute coordinate center
             x = 0; y = 0; minx = 1; miny = 1;
@@ -224,7 +261,7 @@ def draw_names(image, detection_result, funnyNames, seconds):
         facePositions = sorted(facePositions, key=lambda x: x[0])
 
         for facePos in facePositions:
-            # pick random name based on 10 second seed cycle
+            # pick random name based on 15 seconds seed cycle
             name = np.random.choice(funnyNames)
             minx = facePos[2]
             miny = facePos[3]
@@ -247,18 +284,24 @@ def main():
     options = vision.FaceLandmarkerOptions(base_options=base_options,
                                            output_face_blendshapes=True,
                                            output_facial_transformation_matrixes=True,
-                                           num_faces=2)
+                                           min_face_detection_confidence = 0.5,
+                                           min_face_presence_confidence = 0.5,
+                                           min_tracking_confidence = 0.5,
+                                           num_faces=4)
     detector = vision.FaceLandmarker.create_from_options(options)
 
     fig, ax = plt.subplots(figsize=(12, 12))
     amplitude = 5
-    phaseFact = 10
+    phaseFact = 20
     hsvFact = 1
     globalPhase = 0
     hsvPhase = 0
 
     rotation = 0
     smileMeter = 0
+
+    cv2.namedWindow('faces', cv2.WND_PROP_FULLSCREEN)
+    cv2.setWindowProperty('faces', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
     while True:
         # Read the latest frame from the webcam
@@ -320,10 +363,10 @@ def main():
             amplitude = amplitude * learnFact + (5 + 5 * (mouthSmileLeft + mouthSmileRight)/2) * (1 - learnFact)
 
             learnFact = 0.9
-            phaseFact = phaseFact * learnFact + (10 + 50 * browInnerUp) * (1 - learnFact)
+            phaseFact = phaseFact * learnFact + (20 + 40 * browInnerUp) * (1 - learnFact)
 
             learnFact = 0.9
-            hsvFact = hsvFact * learnFact + (1 + 15 * mouthPucker) * (1 - learnFact)
+            hsvFact = hsvFact * learnFact + (1 + 5 * mouthPucker) * (1 - learnFact)
 
             learnFact = 1.0
             rotation -= learnFact * (eyeLookInLeft - eyeLookOutLeft)
@@ -331,7 +374,6 @@ def main():
         annotated_image = draw_landmarks_on_image(0*image.numpy_view(), detection_result)
 
         annotated_image = draw_names(annotated_image, detection_result, funny_names, seconds)
-        # todo name allocation based on x-coordinate
 
         annotated_image = cv2.resize(annotated_image, (0, 0), fx = detectionSubsample, fy = detectionSubsample, interpolation=cv2.INTER_NEAREST)
 
@@ -355,13 +397,18 @@ def main():
 
         canvasBlend = np.where(np.repeat((np.sum(annotated_image, axis=2) == 0)[:, :, np.newaxis], 3, axis=2), background, annotated_image)
 
+        # pad to 16/10
+        padded_image = np.zeros((int(canvasBlend.shape[1]*10/16), canvasBlend.shape[1], 3), dtype=np.uint8)
+        # Copy the original image onto the padded canvas
+        padded_image[int((padded_image.shape[0] - canvasBlend.shape[0])/2):-int((padded_image.shape[0] - canvasBlend.shape[0])/2), :, :] = canvasBlend
+
         # canvasBlend = rotate_image(canvasBlend, rotation)
-        cv2.imshow('faces', canvasBlend)
+        cv2.imshow('faces', padded_image)
         cv2.waitKey(1)
 
         if smileMeter == 1:
             # store both photos
-            savePic(cv2.cvtColor(canvasBlend, cv2.COLOR_BGR2RGB))
+            savePic(canvasBlend)
             savePic(frame)
             smileMeter = 0.0
 

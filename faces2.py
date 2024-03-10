@@ -324,6 +324,7 @@ def main():
         annotated_image = draw_landmarks_on_image(0*image.numpy_view(), detection_result)
 
         annotated_image = draw_names(annotated_image, detection_result, funny_names, seconds)
+        # todo name allocation based on x-coordinate
 
         annotated_image = cv2.resize(annotated_image, (0, 0), fx = detectionSubsample, fy = detectionSubsample, interpolation=cv2.INTER_NEAREST)
 

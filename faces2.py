@@ -203,6 +203,7 @@ def draw_smile_meter(image, smileMeter):
 def draw_names(image, detection_result, funnyNames, seconds):
 
     height = image.shape[0]; width = image.shape[1]
+    facePositions = []
     if len(detection_result.face_blendshapes):
         np.random.seed(int((seconds/10)) * 10)
         for face_landmarks in detection_result.face_landmarks:
@@ -218,9 +219,15 @@ def draw_names(image, detection_result, funnyNames, seconds):
             x /= len(face_landmarks)
             y /= len(face_landmarks)
 
+            facePositions.append([x, y, minx, miny])
+
+        facePositions = sorted(facePositions, key=lambda x: x[0])
+
+        for facePos in facePositions:
             # pick random name based on 10 second seed cycle
             name = np.random.choice(funnyNames)
-
+            minx = facePos[2]
+            miny = facePos[3]
             cv2.putText(image, name, org=(int(minx * width), int((miny-0.02) * height)),
                         fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=0.9, thickness=1,
                         color=(255, 255, 255), lineType=cv2.LINE_4)

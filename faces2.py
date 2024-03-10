@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 from threading import Thread
 import mediapipe as mp
+from funnyNames import funny_names
 
 from mediapipe import solutions
 from mediapipe.framework.formats import landmark_pb2
@@ -197,6 +198,34 @@ def draw_smile_meter(image, smileMeter):
                 color=(255, 255, 255), lineType=cv2.LINE_4)
 
     return image
+
+
+def draw_names(image, detection_result, funnyNames, seconds):
+
+    height = image.shape[0]; width = image.shape[1]
+    if len(detection_result.face_blendshapes):
+        np.random.seed(int((seconds/10)) * 10)
+        for face_landmarks in detection_result.face_landmarks:
+            # compute coordinate center
+            x = 0; y = 0; minx = 1; miny = 1;
+            for landmark in face_landmarks:
+                x += landmark.x
+                y += landmark.y
+                if landmark.x<minx:
+                    minx=landmark.x
+                if landmark.y<miny:
+                    miny=landmark.y
+            x /= len(face_landmarks)
+            y /= len(face_landmarks)
+
+            # pick random name based on 10 second seed cycle
+            name = np.random.choice(funnyNames)
+
+            cv2.putText(image, name, org=(int(minx * width), int((miny-0.02) * height)),
+                        fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=0.9, thickness=1,
+                        color=(255, 255, 255), lineType=cv2.LINE_4)
+
+    return image
 def main():
     # setting for the webcam
     targetResolution = [1920 // 1, 1080 // 1]
@@ -242,18 +271,39 @@ def main():
         smileMeter = np.clip(smileMeter - 0.02, 0, 1)
 
         if len(detection_result.face_blendshapes):
+            browInnerUp = 0
+            mouthPucker = 0
+            mouthSmileLeft = 0
+            mouthSmileRight = 0
+            eyeLookInLeft = 0
+            eyeLookInRight = 0
+            eyeLookOutLeft = 0
+            eyeLookOutRight = 0
+            faceCount = len(detection_result.face_blendshapes)
             # control the wiggle phase with facial expressions
-            face_blendshapes = detection_result.face_blendshapes[0]
-            face_blendshapes_names = [face_blendshapes_category.category_name for face_blendshapes_category in face_blendshapes]
-            face_blendshapes_scores = [face_blendshapes_category.score for face_blendshapes_category in face_blendshapes]
-            browInnerUp = face_blendshapes_scores[3]
-            mouthPucker = face_blendshapes_scores[38]
-            mouthSmileLeft = face_blendshapes_scores[44]
-            mouthSmileRight = face_blendshapes_scores[45]
-            eyeLookInLeft =  face_blendshapes_scores[13]
-            eyeLookInRight = face_blendshapes_scores[14]
-            eyeLookOutLeft =  face_blendshapes_scores[15]
-            eyeLookOutRight = face_blendshapes_scores[16]
+            for face_blendshapes in detection_result.face_blendshapes:
+                face_blendshapes_names = [face_blendshapes_category.category_name for face_blendshapes_category in face_blendshapes]
+                face_blendshapes_scores = [face_blendshapes_category.score for face_blendshapes_category in face_blendshapes]
+
+                browInnerUp += face_blendshapes_scores[3]
+                mouthPucker += face_blendshapes_scores[38]
+
+                mouthSmileLeft += face_blendshapes_scores[44]
+                mouthSmileRight += face_blendshapes_scores[45]
+
+                eyeLookInLeft += face_blendshapes_scores[13]
+                eyeLookInRight += face_blendshapes_scores[14]
+                eyeLookOutLeft += face_blendshapes_scores[15]
+                eyeLookOutRight += face_blendshapes_scores[16]
+
+            browInnerUp /= faceCount
+            mouthPucker /= faceCount
+            mouthSmileLeft /= faceCount
+            mouthSmileRight /= faceCount
+            eyeLookInLeft /= faceCount
+            eyeLookInRight /= faceCount
+            eyeLookOutLeft /= faceCount
+            eyeLookOutRight /= faceCount
 
             learnFact = 0.05
             smileMeter += (learnFact * (mouthSmileLeft + mouthSmileRight)/2)
@@ -261,18 +311,24 @@ def main():
 
             learnFact = 0.9
             amplitude = amplitude * learnFact + (5 + 5 * (mouthSmileLeft + mouthSmileRight)/2) * (1 - learnFact)
+
             learnFact = 0.9
             phaseFact = phaseFact * learnFact + (10 + 50 * browInnerUp) * (1 - learnFact)
+
             learnFact = 0.9
             hsvFact = hsvFact * learnFact + (1 + 15 * mouthPucker) * (1 - learnFact)
+
             learnFact = 1.0
             rotation -= learnFact * (eyeLookInLeft - eyeLookOutLeft)
 
-        # todo idei, smile-o-meter
+
         # todo smesni iminja, superheroi
-        # todo da slika 3 sliki
+
 
         annotated_image = draw_landmarks_on_image(0*image.numpy_view(), detection_result)
+
+        annotated_image = draw_names(annotated_image, detection_result, funny_names, seconds)
+
         annotated_image = cv2.resize(annotated_image, (0, 0), fx = detectionSubsample, fy = detectionSubsample, interpolation=cv2.INTER_NEAREST)
 
         # draw smile-o-meter

@@ -196,27 +196,11 @@ class RGBcamera(Thread):
             # self.frame = cropFrame(self.frame, crop_dimension=self.cropSize)
 
 def rotate_image(image, angle):
-    # Get the center of the image
     height, width = image.shape[:2]
-    center = (width // 2, height // 2)
-
-    # Calculate the rotation matrix
-    rotation_matrix = cv2.getRotationMatrix2D(center, angle, 1.0)
-
-    # Calculate the new size of the rotated image
-    cos_theta = np.abs(rotation_matrix[0, 0])
-    sin_theta = np.abs(rotation_matrix[0, 1])
-    new_width = int(height * sin_theta + width * cos_theta)
-    new_height = int(height * cos_theta + width * sin_theta)
-
-    # Adjust the rotation matrix for the new size
-    rotation_matrix[0, 2] += (new_width - width) / 2
-    rotation_matrix[1, 2] += (new_height - height) / 2
-
-    # Apply the rotation to the image
-    rotated_image = cv2.warpAffine(image, rotation_matrix, (new_width, new_height), flags=cv2.INTER_LINEAR)
-
-    return rotated_image
+    centerX, centerY = (width // 2, height // 2)
+    M = cv2.getRotationMatrix2D((centerX, centerY), angle, 1.0)
+    rotated = cv2.warpAffine(image, M, (width, height), flags=cv2.INTER_NEAREST, borderMode=cv2.BORDER_REPLICATE)
+    return rotated
 
 def draw_smile_meter(image, smileMeter):
     width = image.shape[1]
@@ -286,20 +270,20 @@ def main():
                                            output_facial_transformation_matrixes=True,
                                            min_face_detection_confidence = 0.5,
                                            min_face_presence_confidence = 0.5,
-                                           min_tracking_confidence = 0.5,
+                                           min_tracking_confidence = 0.2,
                                            num_faces=4)
     detector = vision.FaceLandmarker.create_from_options(options)
 
     fig, ax = plt.subplots(figsize=(12, 12))
     amplitude = 5
-    phaseFact = 20
+    phaseFact = 5
     hsvFact = 1
     globalPhase = 0
     hsvPhase = 0
 
     rotation = 0
     smileMeter = 0
-
+    eyes = []
     cv2.namedWindow('faces', cv2.WND_PROP_FULLSCREEN)
     cv2.setWindowProperty('faces', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
@@ -363,19 +347,29 @@ def main():
             amplitude = amplitude * learnFact + (5 + 5 * (mouthSmileLeft + mouthSmileRight)/2) * (1 - learnFact)
 
             learnFact = 0.9
-            phaseFact = phaseFact * learnFact + (20 + 40 * browInnerUp) * (1 - learnFact)
+            phaseFact = phaseFact * learnFact + (5 + 20 * browInnerUp) * (1 - learnFact)
 
             learnFact = 0.9
             hsvFact = hsvFact * learnFact + (1 + 5 * mouthPucker) * (1 - learnFact)
 
-            learnFact = 1.0
-            rotation -= learnFact * (eyeLookInLeft - eyeLookOutLeft)
+            rotSpeed = 4.0
+            if (eyeLookInLeft + eyeLookOutRight)/2 > 0.4:
+                rotation += rotSpeed * 1
+            elif (eyeLookOutLeft + eyeLookInRight)/2 > 0.4:
+                rotation -= rotSpeed * 1
+
 
         annotated_image = draw_landmarks_on_image(0*image.numpy_view(), detection_result)
-
-        annotated_image = draw_names(annotated_image, detection_result, funny_names, seconds)
+        names_image = draw_names(0*image.numpy_view(), detection_result, funny_names, seconds)
 
         annotated_image = cv2.resize(annotated_image, (0, 0), fx = detectionSubsample, fy = detectionSubsample, interpolation=cv2.INTER_NEAREST)
+        names_image = cv2.resize(names_image, (0, 0), fx=detectionSubsample, fy=detectionSubsample, interpolation=cv2.INTER_NEAREST)
+        annotated_image += names_image
+
+        # background = rotate_image(background, rotation)
+        # annotated_image = rotate_image(annotated_image, rotation)
+        # names_image = rotate_image(names_image, rotation)
+        # annotated_image += names_image
 
         # draw smile-o-meter
         annotated_image = draw_smile_meter(annotated_image, smileMeter)
@@ -402,7 +396,7 @@ def main():
         # Copy the original image onto the padded canvas
         padded_image[int((padded_image.shape[0] - canvasBlend.shape[0])/2):-int((padded_image.shape[0] - canvasBlend.shape[0])/2), :, :] = canvasBlend
 
-        # canvasBlend = rotate_image(canvasBlend, rotation)
+
         cv2.imshow('faces', padded_image)
         cv2.waitKey(1)
 

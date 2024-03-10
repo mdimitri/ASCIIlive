@@ -65,47 +65,47 @@ def draw_landmarks_on_image(rgb_image, detection_result):
     #     landmark_drawing_spec=None,
     #     connection_drawing_spec=solutions.drawing_utils.DrawingSpec(thickness=1, circle_radius=0, color=(64, 64, 64)))
 
+    solutions.drawing_utils.draw_landmarks(
+        image=annotated_image,
+        landmark_list=face_landmarks_proto,
+        connections=mp.solutions.face_mesh.FACEMESH_CONTOURS,
+        landmark_drawing_spec=None,
+        connection_drawing_spec=solutions.drawing_utils.DrawingSpec(thickness=2, circle_radius=0, color=(255, 255, 255)))
+
     # solutions.drawing_utils.draw_landmarks(
     #     image=annotated_image,
     #     landmark_list=face_landmarks_proto,
-    #     connections=mp.solutions.face_mesh.FACEMESH_CONTOURS,
+    #     connections=mp.solutions.face_mesh.FACEMESH_LIPS,
     #     landmark_drawing_spec=None,
     #     connection_drawing_spec=solutions.drawing_utils.DrawingSpec(thickness=2, circle_radius=0, color=(255, 255, 255)))
-
-    solutions.drawing_utils.draw_landmarks(
-        image=annotated_image,
-        landmark_list=face_landmarks_proto,
-        connections=mp.solutions.face_mesh.FACEMESH_LIPS,
-        landmark_drawing_spec=None,
-        connection_drawing_spec=solutions.drawing_utils.DrawingSpec(thickness=2, circle_radius=0, color=(255, 255, 255)))
-
-    solutions.drawing_utils.draw_landmarks(
-        image=annotated_image,
-        landmark_list=face_landmarks_proto,
-        connections=mp.solutions.face_mesh.FACEMESH_LEFT_EYEBROW,
-        landmark_drawing_spec=None,
-        connection_drawing_spec=solutions.drawing_utils.DrawingSpec(thickness=2, circle_radius=0, color=(255, 255, 255)))
-
-    solutions.drawing_utils.draw_landmarks(
-        image=annotated_image,
-        landmark_list=face_landmarks_proto,
-        connections=mp.solutions.face_mesh.FACEMESH_LEFT_EYE,
-        landmark_drawing_spec=None,
-        connection_drawing_spec=solutions.drawing_utils.DrawingSpec(thickness=2, circle_radius=0, color=(255, 255, 255)))
-
-    solutions.drawing_utils.draw_landmarks(
-        image=annotated_image,
-        landmark_list=face_landmarks_proto,
-        connections=mp.solutions.face_mesh.FACEMESH_RIGHT_EYEBROW,
-        landmark_drawing_spec=None,
-        connection_drawing_spec=solutions.drawing_utils.DrawingSpec(thickness=2, circle_radius=0, color=(255, 255, 255)))
-
-    solutions.drawing_utils.draw_landmarks(
-        image=annotated_image,
-        landmark_list=face_landmarks_proto,
-        connections=mp.solutions.face_mesh.FACEMESH_RIGHT_EYE,
-        landmark_drawing_spec=None,
-        connection_drawing_spec=solutions.drawing_utils.DrawingSpec(thickness=2, circle_radius=0, color=(255, 255, 255)))
+    #
+    # solutions.drawing_utils.draw_landmarks(
+    #     image=annotated_image,
+    #     landmark_list=face_landmarks_proto,
+    #     connections=mp.solutions.face_mesh.FACEMESH_LEFT_EYEBROW,
+    #     landmark_drawing_spec=None,
+    #     connection_drawing_spec=solutions.drawing_utils.DrawingSpec(thickness=2, circle_radius=0, color=(255, 255, 255)))
+    #
+    # solutions.drawing_utils.draw_landmarks(
+    #     image=annotated_image,
+    #     landmark_list=face_landmarks_proto,
+    #     connections=mp.solutions.face_mesh.FACEMESH_LEFT_EYE,
+    #     landmark_drawing_spec=None,
+    #     connection_drawing_spec=solutions.drawing_utils.DrawingSpec(thickness=2, circle_radius=0, color=(255, 255, 255)))
+    #
+    # solutions.drawing_utils.draw_landmarks(
+    #     image=annotated_image,
+    #     landmark_list=face_landmarks_proto,
+    #     connections=mp.solutions.face_mesh.FACEMESH_RIGHT_EYEBROW,
+    #     landmark_drawing_spec=None,
+    #     connection_drawing_spec=solutions.drawing_utils.DrawingSpec(thickness=2, circle_radius=0, color=(255, 255, 255)))
+    #
+    # solutions.drawing_utils.draw_landmarks(
+    #     image=annotated_image,
+    #     landmark_list=face_landmarks_proto,
+    #     connections=mp.solutions.face_mesh.FACEMESH_RIGHT_EYE,
+    #     landmark_drawing_spec=None,
+    #     connection_drawing_spec=solutions.drawing_utils.DrawingSpec(thickness=2, circle_radius=0, color=(255, 255, 255)))
 
     # solutions.drawing_utils.draw_landmarks(
     #     image=annotated_image,
@@ -270,7 +270,7 @@ def main():
                                            output_facial_transformation_matrixes=True,
                                            min_face_detection_confidence = 0.5,
                                            min_face_presence_confidence = 0.5,
-                                           min_tracking_confidence = 0.2,
+                                           min_tracking_confidence = 0.5,
                                            num_faces=4)
     detector = vision.FaceLandmarker.create_from_options(options)
 
@@ -377,15 +377,15 @@ def main():
         # make a trippy background
 
         background = cv2.cvtColor(background, cv2.COLOR_BGR2HSV)
-        hsvPhase += hsvFact * seconds/20000
+        hsvPhase += 2*hsvFact
         # boost colors, and rotate hue over time
-        background[:, :, 0] = np.mod(background[:, :, 0] + hsvPhase / (10 / (180)), 180)
+        background[:, :, 0] = np.mod(background[:, :, 0] + hsvPhase, 180)
         background[:, :, 1] = background[:, :, 1] + np.minimum(128, 255-background[:, :, 1])
         background[:, :, 2] = background[:, :, 2] + np.minimum(64, 255-background[:, :, 2])
         background = cv2.cvtColor(background, cv2.COLOR_HSV2BGR)
 
 
-        globalPhase += phaseFact * ((seconds / 3600.0) / 10)
+        globalPhase += phaseFact * 0.05
         background = apply_wiggly_pattern(background, frequency=5, amplitude=amplitude, phase=globalPhase)
 
 

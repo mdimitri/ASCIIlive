@@ -384,10 +384,8 @@ def main():
         background[:, :, 2] = background[:, :, 2] + np.minimum(64, 255-background[:, :, 2])
         background = cv2.cvtColor(background, cv2.COLOR_HSV2BGR)
 
-
         globalPhase += phaseFact * 0.05
         background = apply_wiggly_pattern(background, frequency=5, amplitude=amplitude, phase=globalPhase)
-
 
         canvasBlend = np.where(np.repeat((np.sum(annotated_image, axis=2) == 0)[:, :, np.newaxis], 3, axis=2), background, annotated_image)
 

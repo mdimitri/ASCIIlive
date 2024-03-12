@@ -70,7 +70,7 @@ def draw_landmarks_on_image(rgb_image, detection_result):
         landmark_list=face_landmarks_proto,
         connections=mp.solutions.face_mesh.FACEMESH_CONTOURS,
         landmark_drawing_spec=None,
-        connection_drawing_spec=solutions.drawing_utils.DrawingSpec(thickness=2, circle_radius=0, color=(255, 255, 255)))
+        connection_drawing_spec=solutions.drawing_utils.DrawingSpec(thickness=4, circle_radius=0, color=(255, 255, 255)))
 
     # solutions.drawing_utils.draw_landmarks(
     #     image=annotated_image,
@@ -138,6 +138,7 @@ def plot_face_blendshapes_bar_graph(face_blendshapes, fig, ax):
   ax.set_title("Face Blendshapes")
   plt.tight_layout()
   plt.pause(0.0001)
+
 def cropFrame(image, crop_dimension=200):
     height, width = image.shape[:2]
 

@@ -350,8 +350,8 @@ def applyBulgingEyes(image, faces, perFaceFeatures, seconds=0):
             mouthSmileLeft  = perFaceFeatures[idx][4]
             mouthSmileRight = perFaceFeatures[idx][5]
 
-            map_x1, map_y1 = bulge_image(bulged_image, leftEyePos,  X, Y, browInnerUp, 3 * eyeSquintLeft + np.cos(4*seconds), scaleX = 1) # np.cos(2*seconds))
-            map_x2, map_y2 = bulge_image(bulged_image, rightEyePos, X, Y, browInnerUp, 3 * eyeSquintRight + np.sin(4*seconds- np.pi/2), scaleX = 1)# np.sin(2*seconds - np.pi/2))
+            map_x1, map_y1 = bulge_image(bulged_image, leftEyePos,  X, Y, browInnerUp, 3 * eyeSquintLeft + np.cos(3*seconds), scaleX = 1) # np.cos(2*seconds))
+            map_x2, map_y2 = bulge_image(bulged_image, rightEyePos, X, Y, browInnerUp, 3 * eyeSquintRight + np.sin(3*seconds- np.pi/2), scaleX = 1)# np.sin(2*seconds - np.pi/2))
             map_x3, map_y3 = bulge_image(bulged_image, lipsPos,     X, Y, (mouthSmileLeft+mouthSmileRight)/4,    1.5 * mouthPucker + 0.1 * np.cos(8*seconds), scaleX = 0.5)
 
             map_x = 4 * X - map_x1 - map_x2 - map_x3
@@ -381,8 +381,8 @@ def main():
                                            output_face_blendshapes=True,
                                            output_facial_transformation_matrixes=True,
                                            min_face_detection_confidence = 0.3,
-                                           min_face_presence_confidence = 0.5,
-                                           min_tracking_confidence = 0.5,
+                                           min_face_presence_confidence = 0.3,
+                                           min_tracking_confidence = 0.3,
                                            num_faces=4)
     detector = vision.FaceLandmarker.create_from_options(options)
 

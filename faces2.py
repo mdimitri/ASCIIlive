@@ -358,9 +358,9 @@ def applyBulgingEyes(image, faces, perFaceFeatures, seconds=0):
             mouthSmileRight = perFaceFeatures[idx][5]
 
 
-            bulged_image = bulge_image(bulged_image, leftEyePos,  X, Y, browInnerUp, 3 * eyeSquintLeft, scaleX = 1) # np.cos(2*seconds))
-            bulged_image = bulge_image(bulged_image, rightEyePos, X, Y, browInnerUp, 3 * eyeSquintRight, scaleX = 1)# np.sin(2*seconds - np.pi/2))
-            bulged_image = bulge_image(bulged_image, lipsPos,     X, Y, (mouthSmileLeft+mouthSmileRight)/6,    1 * mouthPucker, scaleX = 0.5)
+            bulged_image = bulge_image(bulged_image, leftEyePos,  X, Y, browInnerUp, 3 * eyeSquintLeft + np.cos(4*seconds), scaleX = 1) # np.cos(2*seconds))
+            bulged_image = bulge_image(bulged_image, rightEyePos, X, Y, browInnerUp, 3 * eyeSquintRight + np.sin(4*seconds- np.pi/2), scaleX = 1)# np.sin(2*seconds - np.pi/2))
+            bulged_image = bulge_image(bulged_image, lipsPos,     X, Y, (mouthSmileLeft+mouthSmileRight)/6,    1 * mouthPucker + 0.1 * np.cos(8*seconds), scaleX = 0.5)
     else:
         return image
 

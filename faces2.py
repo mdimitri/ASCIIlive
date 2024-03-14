@@ -271,18 +271,18 @@ def getFeatureCentroid(idx_to_coordinates, connections=mp.solutions.face_mesh.FA
     return centroid
 
 
-def bulge_image(img, center, X, Y, browInnerUp, eyeSquint, scaleX=1):
+def bulge_image(img, center, X, Y, browInnerUp, eyeSquint, scaleX=1, scaleY = 1, radiusScale = 8):
     if np.any(np.isnan(center)):
-        return img
+        return X, Y
     # Grab the dimensions of the image
     (h, w, _) = img.shape
 
     # Set up the distortion parameters
     scale_x = 4 * scaleX
-    scale_y = 4
+    scale_y = 4 * scaleY
     center_x = center[0] # w / 2
     center_y = center[1] #h / 2
-    radius = w / 8
+    radius = w / radiusScale
     amount = -0.5*eyeSquint + 2*browInnerUp
     # if browInnerUp > eyeSquint:
     #     amount = -0.5 + 2.0 * browInnerUp  # Positive values produce barrel distortion
@@ -299,19 +299,12 @@ def bulge_image(img, center, X, Y, browInnerUp, eyeSquint, scaleX=1):
 
     # factor = np.where(outside_ellipse, 1.0, np.power(np.sin(np.pi * np.sqrt(distance) / radius / 2), amount))
 
-    factor = 1 - amount * np.exp(-(distance**2)/(radius**2))
+    factor = 1 + amount * np.exp(-(distance**2)/(radius**2))
 
     map_x = factor * delta_x / scale_x + center_x
     map_y = factor * delta_y / scale_y + center_y
 
-    # Perform the remap
-    map_x = cv2.resize(map_x, (img.shape[1], img.shape[0]), interpolation=cv2.INTER_CUBIC)
-    map_y = cv2.resize(map_y, (img.shape[1], img.shape[0]), interpolation=cv2.INTER_CUBIC)
-
-    bulged_image = cv2.remap(img, map_x, map_y, cv2.INTER_CUBIC)
-
-
-    return bulged_image
+    return map_x, map_y
 def applyBulgingEyes(image, faces, perFaceFeatures, seconds=0):
     # for each face
     face_landmarks_list = faces.face_landmarks
@@ -357,10 +350,18 @@ def applyBulgingEyes(image, faces, perFaceFeatures, seconds=0):
             mouthSmileLeft  = perFaceFeatures[idx][4]
             mouthSmileRight = perFaceFeatures[idx][5]
 
+            map_x1, map_y1 = bulge_image(bulged_image, leftEyePos,  X, Y, browInnerUp, 3 * eyeSquintLeft + np.cos(4*seconds), scaleX = 1) # np.cos(2*seconds))
+            map_x2, map_y2 = bulge_image(bulged_image, rightEyePos, X, Y, browInnerUp, 3 * eyeSquintRight + np.sin(4*seconds- np.pi/2), scaleX = 1)# np.sin(2*seconds - np.pi/2))
+            map_x3, map_y3 = bulge_image(bulged_image, lipsPos,     X, Y, (mouthSmileLeft+mouthSmileRight)/4,    1.5 * mouthPucker + 0.1 * np.cos(8*seconds), scaleX = 0.5)
 
-            bulged_image = bulge_image(bulged_image, leftEyePos,  X, Y, browInnerUp, 3 * eyeSquintLeft + np.cos(4*seconds), scaleX = 1) # np.cos(2*seconds))
-            bulged_image = bulge_image(bulged_image, rightEyePos, X, Y, browInnerUp, 3 * eyeSquintRight + np.sin(4*seconds- np.pi/2), scaleX = 1)# np.sin(2*seconds - np.pi/2))
-            bulged_image = bulge_image(bulged_image, lipsPos,     X, Y, (mouthSmileLeft+mouthSmileRight)/6,    1 * mouthPucker + 0.1 * np.cos(8*seconds), scaleX = 0.5)
+            map_x = 5 * X - map_x1 - map_x2 - map_x3
+            map_y = 5 * Y - map_y1 - map_y2 - map_y3
+            # Perform the remap
+            map_x = cv2.resize(map_x, (bulged_image.shape[1], bulged_image.shape[0]), interpolation=cv2.INTER_CUBIC)
+            map_y = cv2.resize(map_y, (bulged_image.shape[1], bulged_image.shape[0]), interpolation=cv2.INTER_CUBIC)
+
+            bulged_image = cv2.remap(bulged_image, map_x, map_y, cv2.INTER_CUBIC)
+
     else:
         return image
 
@@ -506,14 +507,13 @@ def main():
             hsvPhase += 2*hsvFact
             # boost colors, and rotate hue over time
             background[:, :, 0] = np.mod(background[:, :, 0] + hsvPhase, 180)
-            background[:, :, 1] = background[:, :, 1] + np.minimum(128, 255-background[:, :, 1])
+            background[:, :, 1] = background[:, :, 1] + np.minimum(32, 255-background[:, :, 1])
             background[:, :, 2] = background[:, :, 2] + np.minimum(64, 255-background[:, :, 2])
             background = cv2.cvtColor(background, cv2.COLOR_HSV2BGR)
 
             globalPhase += phaseFact * 0.05
             # background = apply_wiggly_pattern(background, frequency=5, amplitude=amplitude, phase=globalPhase)
             background = applyBulgingEyes(background, detection_result, perFaceFeatures, seconds=seconds)
-
 
 
             canvasBlend = np.where(np.repeat((np.sum(annotated_image, axis=2) == 0)[:, :, np.newaxis], 3, axis=2), background, annotated_image)

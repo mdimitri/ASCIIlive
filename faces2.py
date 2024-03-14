@@ -354,8 +354,8 @@ def applyBulgingEyes(image, faces, perFaceFeatures, seconds=0):
             map_x2, map_y2 = bulge_image(bulged_image, rightEyePos, X, Y, browInnerUp, 3 * eyeSquintRight + np.sin(4*seconds- np.pi/2), scaleX = 1)# np.sin(2*seconds - np.pi/2))
             map_x3, map_y3 = bulge_image(bulged_image, lipsPos,     X, Y, (mouthSmileLeft+mouthSmileRight)/4,    1.5 * mouthPucker + 0.1 * np.cos(8*seconds), scaleX = 0.5)
 
-            map_x = 5 * X - map_x1 - map_x2 - map_x3
-            map_y = 5 * Y - map_y1 - map_y2 - map_y3
+            map_x = 4 * X - map_x1 - map_x2 - map_x3
+            map_y = 4 * Y - map_y1 - map_y2 - map_y3
             # Perform the remap
             map_x = cv2.resize(map_x, (bulged_image.shape[1], bulged_image.shape[0]), interpolation=cv2.INTER_CUBIC)
             map_y = cv2.resize(map_y, (bulged_image.shape[1], bulged_image.shape[0]), interpolation=cv2.INTER_CUBIC)

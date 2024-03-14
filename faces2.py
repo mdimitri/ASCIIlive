@@ -12,6 +12,9 @@ from mediapipe.framework.formats import landmark_pb2
 
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
+from mediapipe.python.solutions.drawing_utils import  _normalized_to_pixel_coordinates
+
+from tqdm import tqdm
 
 def savePic(pic):
     path = './Wall of fame'
@@ -255,6 +258,108 @@ def draw_names(image, detection_result, funnyNames, seconds):
                         color=(255, 255, 255), lineType=cv2.LINE_4)
 
     return image
+
+
+def getFeatureCentroid(idx_to_coordinates, connections=mp.solutions.face_mesh.FACEMESH_LEFT_EYE):
+    centroid = []
+    for connection in connections:
+        start_idx = connection[0]
+        end_idx = connection[1]
+        if start_idx in idx_to_coordinates and end_idx in idx_to_coordinates:
+            centroid.append(idx_to_coordinates[start_idx])
+    centroid = np.mean(np.asarray(centroid), axis=0)
+    return centroid
+
+
+def bulge_image(img, center, browInnerUp, eyeSquint, scaleX=1):
+    if np.any(np.isnan(center)):
+        return img
+    # Grab the dimensions of the image
+    (h, w, _) = img.shape
+
+    # Set up the x and y grids
+    x = np.arange(w, dtype=np.float32)
+    y = np.arange(h, dtype=np.float32)
+    X, Y = np.meshgrid(x, y)
+
+    # Set up the distortion parameters
+    scale_x = 4 * scaleX
+    scale_y = 4
+    center_x = center[0] # w / 2
+    center_y = center[1] #h / 2
+    radius = w / 8
+    amount = -0.5*eyeSquint + 2*browInnerUp
+    # if browInnerUp > eyeSquint:
+    #     amount = -0.5 + 2.0 * browInnerUp  # Positive values produce barrel distortion
+    # else:
+    #     amount = -0.5 * eyeSquint  # Negative values produce pincushion distortion
+
+
+    # Compute the distortion
+    delta_x = scale_x * (X - center_x)
+    delta_y = scale_y * (Y - center_y)
+    distance = np.sqrt(delta_x ** 2 + delta_y ** 2)
+    # outside_ellipse = distance >= radius ** 2
+
+    # factor = np.where(outside_ellipse, 1.0, np.power(np.sin(np.pi * np.sqrt(distance) / radius / 2), amount))
+
+    factor = 1 - amount * np.exp(-(distance**2)/(radius**2))
+
+    map_x = factor * delta_x / scale_x + center_x
+    map_y = factor * delta_y / scale_y + center_y
+
+    # Perform the remap
+
+    bulged_image = cv2.remap(img, map_x, map_y, cv2.INTER_NEAREST)
+
+
+    return bulged_image
+def applyBulgingEyes(image, faces, perFaceFeatures, seconds=0):
+    # for each face
+    face_landmarks_list = faces.face_landmarks
+    bulged_image = np.copy(image)
+    # Loop through the detected faces to visualize.
+    for idx in range(len(face_landmarks_list)):
+
+        face_landmarks = face_landmarks_list[idx]
+
+        # Draw the face landmarks.
+        landmark_list = landmark_pb2.NormalizedLandmarkList()
+        landmark_list.landmark.extend([
+            landmark_pb2.NormalizedLandmark(x=landmark.x, y=landmark.y, z=landmark.z) for landmark in face_landmarks
+        ])
+
+        # convert to pixel coordinates
+        image_rows, image_cols, _ = image.shape
+        idx_to_coordinates = {}
+        for idx_l, landmark in enumerate(landmark_list.landmark):
+            landmark_px = _normalized_to_pixel_coordinates(landmark.x, landmark.y,
+                                                           image_cols, image_rows)
+            if landmark_px:
+                idx_to_coordinates[idx_l] = landmark_px
+
+        leftEyePos  = getFeatureCentroid(idx_to_coordinates, connections=mp.solutions.face_mesh.FACEMESH_LEFT_EYE)
+        rightEyePos = getFeatureCentroid(idx_to_coordinates, connections=mp.solutions.face_mesh.FACEMESH_RIGHT_EYE)
+        lipsPos     = getFeatureCentroid(idx_to_coordinates, connections=mp.solutions.face_mesh.FACEMESH_LIPS)
+
+        # apply bulging
+        browInnerUp     = perFaceFeatures[idx][0]
+        eyeSquintLeft   = perFaceFeatures[idx][1]
+        eyeSquintRight  = perFaceFeatures[idx][2]
+        mouthPucker     = perFaceFeatures[idx][3]
+        mouthSmileLeft  = perFaceFeatures[idx][4]
+        mouthSmileRight = perFaceFeatures[idx][5]
+
+
+        bulged_image = bulge_image(bulged_image,        leftEyePos,  browInnerUp, 3 * eyeSquintLeft, scaleX = 1) # np.cos(2*seconds))
+        bulged_image = bulge_image(bulged_image, rightEyePos, browInnerUp, 3 * eyeSquintRight, scaleX = 1)# np.sin(2*seconds - np.pi/2))
+        bulged_image = bulge_image(bulged_image, lipsPos, (mouthSmileLeft+mouthSmileRight)/6,    1 * mouthPucker, scaleX = 0.5)
+
+
+    if not(len(face_landmarks_list)):
+        return image
+
+    return bulged_image
 def main():
     # setting for the webcam
     targetResolution = [1920 // 1, 1080 // 1]
@@ -269,7 +374,7 @@ def main():
     options = vision.FaceLandmarkerOptions(base_options=base_options,
                                            output_face_blendshapes=True,
                                            output_facial_transformation_matrixes=True,
-                                           min_face_detection_confidence = 0.5,
+                                           min_face_detection_confidence = 0.3,
                                            min_face_presence_confidence = 0.5,
                                            min_tracking_confidence = 0.5,
                                            num_faces=4)
@@ -288,125 +393,144 @@ def main():
     cv2.namedWindow('faces', cv2.WND_PROP_FULLSCREEN)
     cv2.setWindowProperty('faces', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
-    while True:
-        # Read the latest frame from the webcam
-        # if frameNo>0:
-        #     oldFrame = frame
-        current_time = datetime.now()
-        seconds = current_time.minute * 60 + current_time.second + current_time.microsecond / 1000000
+    with tqdm() as pbar:
+        while True:
+            # Read the latest frame from the webcam
+            # if frameNo>0:
+            #     oldFrame = frame
+            current_time = datetime.now()
+            seconds = current_time.minute * 60 + current_time.second + current_time.microsecond / 1000000
 
-        frame = cv2.resize(camera.frame, targetSize, interpolation=cv2.INTER_NEAREST)
-        background = np.copy(frame)
-
-
-        image = mp.Image(image_format=mp.ImageFormat.SRGB, data=cv2.resize(frame, (0, 0), fx = 1/detectionSubsample, fy = 1/detectionSubsample, interpolation=cv2.INTER_NEAREST))
-
-        detection_result = detector.detect(image)
-
-        smileMeter = np.clip(smileMeter - 0.02, 0, 1)
-
-        if len(detection_result.face_blendshapes):
-            browInnerUp = 0
-            mouthPucker = 0
-            mouthSmileLeft = 0
-            mouthSmileRight = 0
-            eyeLookInLeft = 0
-            eyeLookInRight = 0
-            eyeLookOutLeft = 0
-            eyeLookOutRight = 0
-            faceCount = len(detection_result.face_blendshapes)
-            # control the wiggle phase with facial expressions
-            for face_blendshapes in detection_result.face_blendshapes:
-                face_blendshapes_names = [face_blendshapes_category.category_name for face_blendshapes_category in face_blendshapes]
-                face_blendshapes_scores = [face_blendshapes_category.score for face_blendshapes_category in face_blendshapes]
-
-                browInnerUp += face_blendshapes_scores[3]
-                mouthPucker += face_blendshapes_scores[38]
-
-                mouthSmileLeft += face_blendshapes_scores[44]
-                mouthSmileRight += face_blendshapes_scores[45]
-
-                eyeLookInLeft += face_blendshapes_scores[13]
-                eyeLookInRight += face_blendshapes_scores[14]
-                eyeLookOutLeft += face_blendshapes_scores[15]
-                eyeLookOutRight += face_blendshapes_scores[16]
-
-            browInnerUp /= faceCount
-            mouthPucker /= faceCount
-            mouthSmileLeft /= faceCount
-            mouthSmileRight /= faceCount
-            eyeLookInLeft /= faceCount
-            eyeLookInRight /= faceCount
-            eyeLookOutLeft /= faceCount
-            eyeLookOutRight /= faceCount
-
-            learnFact = 0.05
-            smileMeter += (learnFact * (mouthSmileLeft + mouthSmileRight)/2)
-            smileMeter = np.clip(smileMeter, 0, 1)
-
-            learnFact = 0.9
-            amplitude = amplitude * learnFact + (5 + 5 * (mouthSmileLeft + mouthSmileRight)/2) * (1 - learnFact)
-
-            learnFact = 0.9
-            phaseFact = phaseFact * learnFact + (5 + 20 * browInnerUp) * (1 - learnFact)
-
-            learnFact = 0.9
-            hsvFact = hsvFact * learnFact + (1 + 5 * mouthPucker) * (1 - learnFact)
-
-            rotSpeed = 4.0
-            if (eyeLookInLeft + eyeLookOutRight)/2 > 0.4:
-                rotation += rotSpeed * 1
-            elif (eyeLookOutLeft + eyeLookInRight)/2 > 0.4:
-                rotation -= rotSpeed * 1
+            frame = cv2.resize(camera.frame, targetSize, interpolation=cv2.INTER_NEAREST)
+            background = np.copy(frame)
 
 
-        annotated_image = draw_landmarks_on_image(0*image.numpy_view(), detection_result)
-        names_image = draw_names(0*image.numpy_view(), detection_result, funny_names, seconds)
+            image = mp.Image(image_format=mp.ImageFormat.SRGB, data=cv2.resize(frame, (0, 0), fx = 1/detectionSubsample, fy = 1/detectionSubsample, interpolation=cv2.INTER_NEAREST))
 
-        annotated_image = cv2.resize(annotated_image, (0, 0), fx = detectionSubsample, fy = detectionSubsample, interpolation=cv2.INTER_NEAREST)
-        names_image = cv2.resize(names_image, (0, 0), fx=detectionSubsample, fy=detectionSubsample, interpolation=cv2.INTER_NEAREST)
-        annotated_image += names_image
+            detection_result = detector.detect(image)
+            perFaceFeatures = []
 
-        # background = rotate_image(background, rotation)
-        # annotated_image = rotate_image(annotated_image, rotation)
-        # names_image = rotate_image(names_image, rotation)
-        # annotated_image += names_image
+            smileMeter = np.clip(smileMeter - 0.02, 0, 1)
 
-        # draw smile-o-meter
-        annotated_image = draw_smile_meter(annotated_image, smileMeter)
+            if len(detection_result.face_blendshapes):
+                browInnerUp = 0
+                mouthPucker = 0
+                mouthSmileLeft = 0
+                mouthSmileRight = 0
+                eyeLookInLeft = 0
+                eyeLookInRight = 0
+                eyeLookOutLeft = 0
+                eyeLookOutRight = 0
+                faceCount = len(detection_result.face_blendshapes)
+                # control the wiggle phase with facial expressions
+                for face_blendshapes in detection_result.face_blendshapes:
+                    face_blendshapes_names = [face_blendshapes_category.category_name for face_blendshapes_category in face_blendshapes]
+                    face_blendshapes_scores = [face_blendshapes_category.score for face_blendshapes_category in face_blendshapes]
 
-        # make a trippy background
+                    browInnerUp += face_blendshapes_scores[3]
+                    mouthPucker += face_blendshapes_scores[38]
 
-        background = cv2.cvtColor(background, cv2.COLOR_BGR2HSV)
-        hsvPhase += 2*hsvFact
-        # boost colors, and rotate hue over time
-        background[:, :, 0] = np.mod(background[:, :, 0] + hsvPhase, 180)
-        background[:, :, 1] = background[:, :, 1] + np.minimum(128, 255-background[:, :, 1])
-        background[:, :, 2] = background[:, :, 2] + np.minimum(64, 255-background[:, :, 2])
-        background = cv2.cvtColor(background, cv2.COLOR_HSV2BGR)
+                    mouthSmileLeft += face_blendshapes_scores[44]
+                    mouthSmileRight += face_blendshapes_scores[45]
 
-        globalPhase += phaseFact * 0.05
-        background = apply_wiggly_pattern(background, frequency=5, amplitude=amplitude, phase=globalPhase)
+                    eyeLookInLeft += face_blendshapes_scores[13]
+                    eyeLookInRight += face_blendshapes_scores[14]
+                    eyeLookOutLeft += face_blendshapes_scores[15]
+                    eyeLookOutRight += face_blendshapes_scores[16]
 
-        canvasBlend = np.where(np.repeat((np.sum(annotated_image, axis=2) == 0)[:, :, np.newaxis], 3, axis=2), background, annotated_image)
+                    perFaceFeatures.append([face_blendshapes_scores[3],
+                                            face_blendshapes_scores[19],
+                                            face_blendshapes_scores[20],
+                                            face_blendshapes_scores[38],
+                                            face_blendshapes_scores[44],
+                                            face_blendshapes_scores[45],
+                                            face_blendshapes_scores[13],
+                                            face_blendshapes_scores[14],
+                                            face_blendshapes_scores[15],
+                                            face_blendshapes_scores[16]])
 
-        # pad to 16/10
-        padded_image = np.zeros((int(canvasBlend.shape[1]*10/16), canvasBlend.shape[1], 3), dtype=np.uint8)
-        # Copy the original image onto the padded canvas
-        padded_image[int((padded_image.shape[0] - canvasBlend.shape[0])/2):-int((padded_image.shape[0] - canvasBlend.shape[0])/2), :, :] = canvasBlend
+                browInnerUp /= faceCount
+                mouthPucker /= faceCount
+                mouthSmileLeft /= faceCount
+                mouthSmileRight /= faceCount
+                eyeLookInLeft /= faceCount
+                eyeLookInRight /= faceCount
+                eyeLookOutLeft /= faceCount
+                eyeLookOutRight /= faceCount
+
+                learnFact = 0.05
+                smileMeter += (learnFact * (mouthSmileLeft + mouthSmileRight)/2)
+                smileMeter = np.clip(smileMeter, 0, 1)
+
+                learnFact = 0.9
+                amplitude = amplitude * learnFact + (5 + 5 * (mouthSmileLeft + mouthSmileRight)/2) * (1 - learnFact)
+
+                learnFact = 0.9
+                phaseFact = phaseFact * learnFact + (5 + 20 * browInnerUp) * (1 - learnFact)
+
+                learnFact = 0.9
+                hsvFact = hsvFact * learnFact + (1 + 5 * mouthPucker) * (1 - learnFact)
+
+                rotSpeed = 4.0
+                if (eyeLookInLeft + eyeLookOutRight)/2 > 0.4:
+                    rotation += rotSpeed * 1
+                elif (eyeLookOutLeft + eyeLookInRight)/2 > 0.4:
+                    rotation -= rotSpeed * 1
 
 
-        cv2.imshow('faces', padded_image)
-        cv2.waitKey(1)
+            # annotated_image = draw_landmarks_on_image(0*image.numpy_view(), detection_result)
 
-        if smileMeter == 1:
-            # store both photos
-            savePic(canvasBlend)
-            savePic(frame)
-            smileMeter = 0.0
+            names_image = draw_names(0*image.numpy_view(), detection_result, funny_names, seconds)
+
+            # annotated_image = cv2.resize(annotated_image, (0, 0), fx = detectionSubsample, fy = detectionSubsample, interpolation=cv2.INTER_NEAREST)
+            names_image = cv2.resize(names_image, (0, 0), fx=detectionSubsample, fy=detectionSubsample, interpolation=cv2.INTER_NEAREST)
+            # annotated_image += names_image
+            annotated_image = 0*names_image
+
+            # background = rotate_image(background, rotation)
+            # annotated_image = rotate_image(annotated_image, rotation)
+            # names_image = rotate_image(names_image, rotation)
+            # annotated_image += names_image
+
+            # draw smile-o-meter
+            annotated_image = draw_smile_meter(annotated_image, smileMeter)
+
+            # make a trippy background
+
+            background = cv2.cvtColor(background, cv2.COLOR_BGR2HSV)
+            hsvPhase += 2*hsvFact
+            # boost colors, and rotate hue over time
+            background[:, :, 0] = np.mod(background[:, :, 0] + hsvPhase, 180)
+            background[:, :, 1] = background[:, :, 1] + np.minimum(128, 255-background[:, :, 1])
+            background[:, :, 2] = background[:, :, 2] + np.minimum(64, 255-background[:, :, 2])
+            background = cv2.cvtColor(background, cv2.COLOR_HSV2BGR)
+
+            globalPhase += phaseFact * 0.05
+            # background = apply_wiggly_pattern(background, frequency=5, amplitude=amplitude, phase=globalPhase)
+            background = applyBulgingEyes(background, detection_result, perFaceFeatures, seconds=seconds)
 
 
-        # plot_face_blendshapes_bar_graph(detection_result.face_blendshapes[0], fig, ax)
+
+            canvasBlend = np.where(np.repeat((np.sum(annotated_image, axis=2) == 0)[:, :, np.newaxis], 3, axis=2), background, annotated_image)
+
+            # pad to 16/10
+            padded_image = np.zeros((int(canvasBlend.shape[1]*10/16), canvasBlend.shape[1], 3), dtype=np.uint8)
+            # Copy the original image onto the padded canvas
+            padded_image[int((padded_image.shape[0] - canvasBlend.shape[0])/2):-int((padded_image.shape[0] - canvasBlend.shape[0])/2), :, :] = canvasBlend
+
+
+            cv2.imshow('faces', padded_image)
+            cv2.waitKey(1)
+            pbar.update(1)
+
+            # if smileMeter == 1:
+            #     # store both photos
+            #     savePic(canvasBlend)
+            #     savePic(frame)
+            #     smileMeter = 0.0
+
+            #
+            # plot_face_blendshapes_bar_graph(detection_result.face_blendshapes[0], fig, ax)
 
     return
 

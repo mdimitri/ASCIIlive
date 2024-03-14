@@ -271,16 +271,11 @@ def getFeatureCentroid(idx_to_coordinates, connections=mp.solutions.face_mesh.FA
     return centroid
 
 
-def bulge_image(img, center, browInnerUp, eyeSquint, scaleX=1):
+def bulge_image(img, center, X, Y, browInnerUp, eyeSquint, scaleX=1):
     if np.any(np.isnan(center)):
         return img
     # Grab the dimensions of the image
     (h, w, _) = img.shape
-
-    # Set up the x and y grids
-    x = np.arange(w, dtype=np.float32)
-    y = np.arange(h, dtype=np.float32)
-    X, Y = np.meshgrid(x, y)
 
     # Set up the distortion parameters
     scale_x = 4 * scaleX
@@ -299,6 +294,7 @@ def bulge_image(img, center, browInnerUp, eyeSquint, scaleX=1):
     delta_x = scale_x * (X - center_x)
     delta_y = scale_y * (Y - center_y)
     distance = np.sqrt(delta_x ** 2 + delta_y ** 2)
+    # distance = np.abs(delta_x) + np.abs(delta_y)
     # outside_ellipse = distance >= radius ** 2
 
     # factor = np.where(outside_ellipse, 1.0, np.power(np.sin(np.pi * np.sqrt(distance) / radius / 2), amount))
@@ -309,54 +305,63 @@ def bulge_image(img, center, browInnerUp, eyeSquint, scaleX=1):
     map_y = factor * delta_y / scale_y + center_y
 
     # Perform the remap
+    map_x = cv2.resize(map_x, (img.shape[1], img.shape[0]), interpolation=cv2.INTER_LINEAR)
+    map_y = cv2.resize(map_y, (img.shape[1], img.shape[0]), interpolation=cv2.INTER_LINEAR)
 
-    bulged_image = cv2.remap(img, map_x, map_y, cv2.INTER_NEAREST)
+    bulged_image = cv2.remap(img, map_x, map_y, cv2.INTER_LINEAR)
 
 
     return bulged_image
 def applyBulgingEyes(image, faces, perFaceFeatures, seconds=0):
     # for each face
     face_landmarks_list = faces.face_landmarks
-    bulged_image = np.copy(image)
-    # Loop through the detected faces to visualize.
-    for idx in range(len(face_landmarks_list)):
-
-        face_landmarks = face_landmarks_list[idx]
-
-        # Draw the face landmarks.
-        landmark_list = landmark_pb2.NormalizedLandmarkList()
-        landmark_list.landmark.extend([
-            landmark_pb2.NormalizedLandmark(x=landmark.x, y=landmark.y, z=landmark.z) for landmark in face_landmarks
-        ])
-
-        # convert to pixel coordinates
-        image_rows, image_cols, _ = image.shape
-        idx_to_coordinates = {}
-        for idx_l, landmark in enumerate(landmark_list.landmark):
-            landmark_px = _normalized_to_pixel_coordinates(landmark.x, landmark.y,
-                                                           image_cols, image_rows)
-            if landmark_px:
-                idx_to_coordinates[idx_l] = landmark_px
-
-        leftEyePos  = getFeatureCentroid(idx_to_coordinates, connections=mp.solutions.face_mesh.FACEMESH_LEFT_EYE)
-        rightEyePos = getFeatureCentroid(idx_to_coordinates, connections=mp.solutions.face_mesh.FACEMESH_RIGHT_EYE)
-        lipsPos     = getFeatureCentroid(idx_to_coordinates, connections=mp.solutions.face_mesh.FACEMESH_LIPS)
-
-        # apply bulging
-        browInnerUp     = perFaceFeatures[idx][0]
-        eyeSquintLeft   = perFaceFeatures[idx][1]
-        eyeSquintRight  = perFaceFeatures[idx][2]
-        mouthPucker     = perFaceFeatures[idx][3]
-        mouthSmileLeft  = perFaceFeatures[idx][4]
-        mouthSmileRight = perFaceFeatures[idx][5]
 
 
-        bulged_image = bulge_image(bulged_image,        leftEyePos,  browInnerUp, 3 * eyeSquintLeft, scaleX = 1) # np.cos(2*seconds))
-        bulged_image = bulge_image(bulged_image, rightEyePos, browInnerUp, 3 * eyeSquintRight, scaleX = 1)# np.sin(2*seconds - np.pi/2))
-        bulged_image = bulge_image(bulged_image, lipsPos, (mouthSmileLeft+mouthSmileRight)/6,    1 * mouthPucker, scaleX = 0.5)
+    if len(face_landmarks_list):
+        bulged_image = np.copy(image)
+        # Set up the x and y grids
+        subScale = 4
+        (h, w, _) = image.shape
+        x = np.arange(w // subScale, dtype=np.float32) * subScale
+        y = np.arange(h // subScale, dtype=np.float32) * subScale
+        X, Y = np.meshgrid(x, y)
+        # Loop through the detected faces to visualize.
+        for idx in range(len(face_landmarks_list)):
+
+            face_landmarks = face_landmarks_list[idx]
+
+            # Draw the face landmarks.
+            landmark_list = landmark_pb2.NormalizedLandmarkList()
+            landmark_list.landmark.extend([
+                landmark_pb2.NormalizedLandmark(x=landmark.x, y=landmark.y, z=landmark.z) for landmark in face_landmarks
+            ])
+
+            # convert to pixel coordinates
+            image_rows, image_cols, _ = image.shape
+            idx_to_coordinates = {}
+            for idx_l, landmark in enumerate(landmark_list.landmark):
+                landmark_px = _normalized_to_pixel_coordinates(landmark.x, landmark.y,
+                                                               image_cols, image_rows)
+                if landmark_px:
+                    idx_to_coordinates[idx_l] = landmark_px
+
+            leftEyePos  = getFeatureCentroid(idx_to_coordinates, connections=mp.solutions.face_mesh.FACEMESH_LEFT_EYE)
+            rightEyePos = getFeatureCentroid(idx_to_coordinates, connections=mp.solutions.face_mesh.FACEMESH_RIGHT_EYE)
+            lipsPos     = getFeatureCentroid(idx_to_coordinates, connections=mp.solutions.face_mesh.FACEMESH_LIPS)
+
+            # apply bulging
+            browInnerUp     = perFaceFeatures[idx][0]
+            eyeSquintLeft   = perFaceFeatures[idx][1]
+            eyeSquintRight  = perFaceFeatures[idx][2]
+            mouthPucker     = perFaceFeatures[idx][3]
+            mouthSmileLeft  = perFaceFeatures[idx][4]
+            mouthSmileRight = perFaceFeatures[idx][5]
 
 
-    if not(len(face_landmarks_list)):
+            bulged_image = bulge_image(bulged_image, leftEyePos,  X, Y, browInnerUp, 3 * eyeSquintLeft, scaleX = 1) # np.cos(2*seconds))
+            bulged_image = bulge_image(bulged_image, rightEyePos, X, Y, browInnerUp, 3 * eyeSquintRight, scaleX = 1)# np.sin(2*seconds - np.pi/2))
+            bulged_image = bulge_image(bulged_image, lipsPos,     X, Y, (mouthSmileLeft+mouthSmileRight)/6,    1 * mouthPucker, scaleX = 0.5)
+    else:
         return image
 
     return bulged_image

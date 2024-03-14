@@ -490,7 +490,7 @@ def main():
             # annotated_image = cv2.resize(annotated_image, (0, 0), fx = detectionSubsample, fy = detectionSubsample, interpolation=cv2.INTER_NEAREST)
             names_image = cv2.resize(names_image, (0, 0), fx=detectionSubsample, fy=detectionSubsample, interpolation=cv2.INTER_NEAREST)
             # annotated_image += names_image
-            annotated_image = 0*names_image
+            annotated_image = names_image
 
             # background = rotate_image(background, rotation)
             # annotated_image = rotate_image(annotated_image, rotation)

@@ -305,10 +305,10 @@ def bulge_image(img, center, X, Y, browInnerUp, eyeSquint, scaleX=1):
     map_y = factor * delta_y / scale_y + center_y
 
     # Perform the remap
-    map_x = cv2.resize(map_x, (img.shape[1], img.shape[0]), interpolation=cv2.INTER_LINEAR)
-    map_y = cv2.resize(map_y, (img.shape[1], img.shape[0]), interpolation=cv2.INTER_LINEAR)
+    map_x = cv2.resize(map_x, (img.shape[1], img.shape[0]), interpolation=cv2.INTER_CUBIC)
+    map_y = cv2.resize(map_y, (img.shape[1], img.shape[0]), interpolation=cv2.INTER_CUBIC)
 
-    bulged_image = cv2.remap(img, map_x, map_y, cv2.INTER_LINEAR)
+    bulged_image = cv2.remap(img, map_x, map_y, cv2.INTER_CUBIC)
 
 
     return bulged_image
@@ -528,11 +528,11 @@ def main():
             cv2.waitKey(1)
             pbar.update(1)
 
-            # if smileMeter == 1:
-            #     # store both photos
-            #     savePic(canvasBlend)
-            #     savePic(frame)
-            #     smileMeter = 0.0
+            if smileMeter == 1:
+                # store both photos
+                savePic(canvasBlend)
+                savePic(frame)
+                smileMeter = 0.0
 
             #
             # plot_face_blendshapes_bar_graph(detection_result.face_blendshapes[0], fig, ax)
